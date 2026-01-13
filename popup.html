@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XBooster</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header class="hero">
+      <div>
+        <h1>XBooster</h1>
+      </div>
+      <div class="hero-right">
+        <div class="author-meta">
+          <a href="https://x.com/eggyrooch" target="_blank" class="author-link" title="打开作者主页">@eggyrooch</a>
+          <span class="author-desc">XBooster 作者</span>
+        </div>
+        <a href="settings.html" target="_blank" class="icon-btn ghost" title="打开设置" aria-label="设置">
+          <span style="font-size: 18px;">⚙️</span>
+        </a>
+      </div>
+    </header>
+
+    <div class="card stats-card">
+      <div class="card-title-row">
+        <div>
+          <p class="card-kicker">TODAY</p>
+        </div>
+        <span class="chip muted">数据来自批量回复</span>
+      </div>
+      <div class="stats-grid">
+        <div class="stat">
+          <p class="stat-label">已处理</p>
+          <p class="stat-value" id="stat-total">0</p>
+        </div>
+        <div class="stat">
+          <p class="stat-label">成功</p>
+          <p class="stat-value success" id="stat-success">0</p>
+        </div>
+        <div class="stat">
+          <p class="stat-label">失败</p>
+          <p class="stat-value danger" id="stat-fail">0</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ✅ 新增：情绪快速选择器 -->
+    <div class="card emotion-selector" id="emotion-selector">
+      <div class="emotion-header">
+        <div>
+          <p class="card-kicker">TONE</p>
+        </div>
+        <span class="pill" id="current-emotion">😊 友好</span>
+      </div>
+      <div class="emotion-grid" id="emotion-grid"></div>
+    </div>
+
+    <div class="section" id="author-section" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="flex: 1;">
+          <!-- ✅ 新增：页面上下文显示 -->
+          <div id="page-context-info" class="page-context" style="display: none;">
+            <span id="page-context-icon" class="page-context-icon"></span>
+            <span id="page-context-label" class="page-context-label"></span>
+          </div>
+
+          <div class="author-row">
+            <span class="author-label">当前帖子作者：</span>
+            <div id="author-info" class="author-info"></div>
+          </div>
+        </div>
+        <button id="read-content-btn" class="icon-btn" title="重新读取" style="display: none;">
+          <span style="font-size: 18px;">🔄</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="section" id="translation-result-section" style="display: none;">
+      <label>帖子翻译：</label>
+      <div id="post-translation-content" class="content-box translation-box"></div>
+      <button id="copy-post-translation-btn" class="btn-secondary" disabled>复制翻译</button>
+    </div>
+
+    <div class="section" id="post-content-section" style="display: none;">
+      <label>
+        帖子原文：
+        <button id="toggle-original-btn" class="toggle-btn" style="font-size: 12px; padding: 2px 8px; margin-left: 10px;">显示</button>
+      </label>
+      <div id="post-content" class="content-box" style="display: none;"></div>
+    </div>
+
+    <div class="section" id="prompt-section" style="display: none;">
+      <label for="custom-prompt" style="margin-bottom: 6px;">自定义提示词（可选）：</label>
+      <textarea id="custom-prompt" rows="3" placeholder="输入提示词或评论草稿，AI 将帮你生成更合适的评论...&#10;留空时会使用设置页中的默认提示词模板"></textarea>
+      <div class="help-text" style="font-size: 12px; color: #657786; margin-top: 4px;">
+        可直接输入你的观点或指令，也可依赖设置页的默认提示词模板
+      </div>
+      
+      <label for="prompt-template" style="margin-top: 12px;">AI 润色风格：</label>
+      <select id="prompt-template">
+        <option value="">选择风格...</option>
+      </select>
+      <button id="load-template-btn" class="btn-secondary">加载风格</button>
+      
+      <button id="generate-btn" class="btn-primary" style="margin-top: 10px; width: 100%;">润色评论</button>
+    </div>
+
+    <div class="section" id="comment-result-section" style="display: none;">
+      <label>帖子源语言评论：</label>
+      <div id="comment-content" class="content-box"></div>
+      <button id="copy-comment-btn" class="btn-secondary" disabled>复制评论</button>
+    </div>
+
+    <div class="section" id="comment-translation-section" style="display: none;">
+      <label>评论翻译：</label>
+      <div id="translation-content" class="content-box"></div>
+      <button id="copy-translation-btn" class="btn-secondary" disabled>复制翻译</button>
+    </div>
+
+    <div class="footer-bar">
+      <div id="status" class="status"></div>
+      <button id="generate-comment-btn" class="btn-action" style="display: none;">生成评论</button>
+      <div id="footer-hint" class="footer-hint-banner" style="display: block;">
+        <a href="https://x.com/eggyrooch" target="_blank" class="footer-hint-link">关注作者 @eggyrooch</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>生成插件图标</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      margin: 10px;
+    }
+    .container {
+      text-align: center;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>生成插件图标</h1>
+    <p>点击按钮生成不同尺寸的图标，然后右键保存图片</p>
+    
+    <div>
+      <canvas id="icon16" width="16" height="16"></canvas>
+      <canvas id="icon48" width="48" height="48"></canvas>
+      <canvas id="icon128" width="128" height="128"></canvas>
+    </div>
+    
+    <button onclick="generateIcons()">生成图标</button>
+    <p><small>右键点击画布选择"图片另存为"保存图标</small></p>
+  </div>
+
+  <script>
+    function generateIcons() {
+      const sizes = [16, 48, 128];
+      
+      sizes.forEach(size => {
+        const canvas = document.getElementById(`icon${size}`);
+        const ctx = canvas.getContext('2d');
+        
+        // 清空画布
+        ctx.clearRect(0, 0, size, size);
+        
+        // 绘制背景（蓝色，类似 Twitter/X）
+        ctx.fillStyle = '#1da1f2';
+        ctx.fillRect(0, 0, size, size);
+        
+        // 绘制文字 "X"
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${size * 0.6}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('X', size / 2, size / 2);
+      });
+    }
+    
+    // 页面加载时自动生成
+    window.onload = generateIcons;
+  </script>
+</body>
+</html>

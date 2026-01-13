@@ -1,0 +1,66 @@
+[
+  {
+    "id": "friendly",
+    "name": "友好",
+    "emoji": "😊",
+    "tone": "friendly",
+    "description": "温暖、支持、积极",
+    "prompt": "用友好、支持的语气"
+  },
+  {
+    "id": "professional",
+    "name": "专业",
+    "emoji": "💼",
+    "tone": "professional",
+    "description": "正式、客观、专业",
+    "prompt": "用专业、客观的语气"
+  },
+  {
+    "id": "curious",
+    "name": "提问",
+    "emoji": "❓",
+    "tone": "curious",
+    "description": "好奇、探索、引导",
+    "prompt": "用提问的方式"
+  },
+  {
+    "id": "humorous",
+    "name": "幽默",
+    "emoji": "😄",
+    "tone": "humorous",
+    "description": "轻松、有趣、幽默",
+    "prompt": "用幽默风趣的方式"
+  },
+  {
+    "id": "thoughtful",
+    "name": "深度",
+    "emoji": "🤔",
+    "tone": "thoughtful",
+    "description": "深入、分析、洞察",
+    "prompt": "用深度思考的方式"
+  },
+  {
+    "id": "concise",
+    "name": "简洁",
+    "emoji": "⚡",
+    "tone": "concise",
+    "description": "简短、有力、精炼",
+    "prompt": "用简洁有力的方式"
+  },
+  {
+    "id": "critical",
+    "name": "批判",
+    "emoji": "🧐",
+    "tone": "critical",
+    "description": "批判性、质疑、建设性",
+    "prompt": "用批判性思维"
+  },
+  {
+    "id": "sharing",
+    "name": "分享",
+    "emoji": "💡",
+    "tone": "sharing",
+    "description": "经验、见解、建议",
+    "prompt": "基于经验和知识"
+  }
+]

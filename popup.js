@@ -13,6 +13,46 @@ const RESPONSE_TEMPLATE_KEYS = [
   'locale'
 ];
 const STATS_KEY = 'xcomment_batch_stats';
+const BOOKMARKS_KEY = 'quickBookmarks';
+
+// 默认书签数据
+const DEFAULT_BOOKMARKS = [
+  {
+    id: 'default_bookmark_1',
+    name: '趋势娱乐',
+    url: 'https://x.com/search?q=lang%3Aja%20within_time%3A12h%20-is%3Aretweet%20filter%3Amedia%20-filter%3Areplies%20since%3A2026-01-14&src=typed_query',
+    icon: '🔥',
+    needsDateUpdate: true
+  },
+  {
+    id: 'default_bookmark_2',
+    name: '精选视觉',
+    url: 'https://x.com/search?q=(NSFW%20OR%20porn%20OR%20adult)%20lang%3Aen%20within_time%3A18h%20-is%3Aretweet%20filter%3Aimages%20-filter%3Asafe%20since%3A2026-01-14&src=typed_query&f=top',
+    icon: '🎨',
+    needsDateUpdate: true
+  },
+  {
+    id: 'default_bookmark_3',
+    name: '热门视频',
+    url: 'https://x.com/search?q=lang%3Aja%20within_time%3A36h%20-is%3Aretweet%20filter%3Avideos%20since%3A2026-01-14&src=typed_query&f=top',
+    icon: '📹',
+    needsDateUpdate: true
+  },
+  {
+    id: 'default_bookmark_4',
+    name: '艺术灵感',
+    url: 'https://x.com/search?q=(NSFW%20OR%20R18%20OR%20%E3%82%A8%E3%83%AD%20OR%20porn)%20within_time%3A12h%20-is%3Aretweet%20filter%3Amedia%20-filter%3Asafe%20since%3A2026-01-14&src=typed_query&f=top',
+    icon: '✨',
+    needsDateUpdate: true
+  },
+  {
+    id: 'default_bookmark_5',
+    name: '创作中心',
+    url: 'https://x.com/i/jf/creators/inspiration/top_posts',
+    icon: '💡',
+    needsDateUpdate: false
+  }
+];
 
 // 默认提示词模板（评论 / 回复统一模板）
 const DEFAULT_PROMPT_TEMPLATE = [
@@ -84,6 +124,105 @@ const DEFAULT_PROMPT_TEMPLATE = [
   '- 严禁模仿AI助手的多段式、结构化输出。',
   '- 你最终的输出就是这条回复本身，就像直接在X评论框里打字发出去一样。'
 ].join('\n');
+
+// ========== 书签功能 ==========
+
+/**
+ * 获取今天的日期（YYYY-MM-DD格式）
+ */
+function getTodayDate() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * 从存储中获取书签列表
+ */
+async function getBookmarks() {
+  try {
+    const data = await chrome.storage.sync.get([BOOKMARKS_KEY]);
+    return data[BOOKMARKS_KEY] || null;
+  } catch (e) {
+    console.warn('获取书签失败:', e);
+    return null;
+  }
+}
+
+/**
+ * 初始化默认书签（仅在首次使用时）
+ */
+async function initDefaultBookmarks() {
+  try {
+    const existing = await getBookmarks();
+    if (!existing || existing.length === 0) {
+      await chrome.storage.sync.set({ [BOOKMARKS_KEY]: DEFAULT_BOOKMARKS });
+      return DEFAULT_BOOKMARKS;
+    }
+    return existing;
+  } catch (e) {
+    console.warn('初始化默认书签失败:', e);
+    return DEFAULT_BOOKMARKS;
+  }
+}
+
+/**
+ * 渲染书签列表
+ */
+async function renderBookmarks() {
+  const grid = document.getElementById('bookmarks-grid');
+  if (!grid) return;
+  
+  const bookmarks = await initDefaultBookmarks();
+  
+  if (!bookmarks || bookmarks.length === 0) {
+    grid.innerHTML = '<div style="text-align: center; color: var(--muted); font-size: 12px; padding: 10px;">暂无书签</div>';
+    return;
+  }
+  
+  grid.innerHTML = '';
+  
+  bookmarks.forEach(bookmark => {
+    const item = document.createElement('div');
+    item.className = 'bookmark-item';
+    item.dataset.bookmarkId = bookmark.id;
+    
+    item.innerHTML = `
+      <div class="bookmark-icon">${bookmark.icon || '🔖'}</div>
+      <div class="bookmark-name">${bookmark.name || '未命名'}</div>
+    `;
+    
+    item.addEventListener('click', () => {
+      handleBookmarkClick(bookmark);
+    });
+    
+    grid.appendChild(item);
+  });
+}
+
+/**
+ * 处理书签点击事件
+ */
+async function handleBookmarkClick(bookmark) {
+  try {
+    let url = bookmark.url;
+    
+    // 如果需要更新日期
+    if (bookmark.needsDateUpdate) {
+      const today = getTodayDate();
+      // 替换URL中的since参数
+      url = url.replace(/since=\d{4}-\d{2}-\d{2}/g, `since=${today}`);
+    }
+    
+    // 在新标签页打开
+    await chrome.tabs.create({ url: url });
+  } catch (error) {
+    console.error('打开书签失败:', error);
+    showStatus('打开书签失败', 'error');
+  }
+}
 
 // ========== 情绪选择器功能 ==========
 
@@ -362,8 +501,7 @@ async function readPostContent(retryCount = 0) {
       // 显示重新读取按钮（图标形式）
       document.getElementById('read-content-btn').style.display = 'block';
       
-      // 显示生成评论按钮（在底部）
-      document.getElementById('generate-comment-btn').style.display = 'block';
+      // 隐藏底部提示
       const footerHint = document.getElementById('footer-hint');
       if (footerHint) footerHint.style.display = 'none';
       
@@ -539,15 +677,6 @@ async function autoTranslatePostContent(postContent, targetLanguage, options = {
   }
 }
 
-
-// 显示生成评论的配置界面
-function showCommentConfig() {
-  document.getElementById('prompt-section').style.display = 'block';
-  const actionSection = document.getElementById('action-buttons-section');
-  if (actionSection) {
-    actionSection.style.display = 'none';
-  }
-}
 
 // 检测帖子语言
 function detectPostLanguage(text) {
@@ -867,7 +996,6 @@ function resetUI() {
   document.getElementById('translation-result-section').style.display = 'none';
   document.getElementById('comment-result-section').style.display = 'none';
   document.getElementById('comment-translation-section').style.display = 'none';
-  document.getElementById('generate-comment-btn').style.display = 'none';
   
   // 清空内容
   document.getElementById('post-content').textContent = '';
@@ -911,22 +1039,16 @@ function showStatus(message, type) {
   if (type === 'error' || type === 'info') {
     if (footerHint) footerHint.style.display = 'none';
   } else {
-    // 当状态清空时，显示底部提示（如果没有按钮显示）
-    const generateBtn = document.getElementById('generate-comment-btn');
-    if (!generateBtn || generateBtn.style.display === 'none') {
-      if (footerHint) footerHint.style.display = 'block';
-    }
+    // 当状态清空时，显示底部提示
+    if (footerHint) footerHint.style.display = 'block';
   }
   
   if (type === 'success') {
     setTimeout(() => {
       statusEl.className = 'status';
       statusEl.textContent = '';
-      // 状态清空后，检查是否需要显示底部提示
-      const generateBtn = document.getElementById('generate-comment-btn');
-      if (!generateBtn || generateBtn.style.display === 'none') {
-        if (footerHint) footerHint.style.display = 'block';
-      }
+      // 状态清空后，显示底部提示
+      if (footerHint) footerHint.style.display = 'block';
     }, 3000);
   }
 }
@@ -1059,11 +1181,7 @@ async function checkCurrentPage() {
             readPostContent();
           }, 300);
         } else {
-          showStatus(`当前在 ${results.pageContext.label}，可以直接创作评论`, 'info');
-          // 显示生成评论按钮
-          document.getElementById('generate-comment-btn').style.display = 'block';
-          const footerHint = document.getElementById('footer-hint');
-          if (footerHint) footerHint.style.display = 'none';
+          showStatus(`当前在 ${results.pageContext.label}`, 'info');
         }
       } else if (results && results.isPostPage && results.author) {
         // ✅ 兼容旧逻辑（如果 pageContext 不存在）
@@ -1101,6 +1219,8 @@ async function checkCurrentPage() {
 document.addEventListener('DOMContentLoaded', async () => {
   // ✅ 加载情绪选择器
   await loadEmotions();
+  // ✅ 加载书签
+  await renderBookmarks();
   // 载入统计看板
   loadStats();
   
@@ -1146,12 +1266,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (actionSection) {
       actionSection.style.display = 'none';
     }
-    document.getElementById('generate-comment-btn').style.display = 'none';
     readPostContent();
   });
-  
-  // 生成评论按钮（在底部）
-  document.getElementById('generate-comment-btn').addEventListener('click', showCommentConfig);
   
   // 切换原文显示/隐藏
   document.getElementById('toggle-original-btn').addEventListener('click', () => {
@@ -1166,9 +1282,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       toggleBtn.textContent = '显示';
     }
   });
-  
-  // 生成评论按钮（在底部）
-  document.getElementById('generate-comment-btn').addEventListener('click', showCommentConfig);
   
   // 提示词相关
   document.getElementById('load-template-btn').addEventListener('click', loadTemplate);

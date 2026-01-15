@@ -83,6 +83,7 @@ const STATS_KEY = 'xcomment_batch_stats';
 const API_POOL_KEY = 'apiPool';
 const API_POOL_ENABLED_KEY = 'enableApiPool';
 const PROXY_LIST_KEY = 'proxyList';
+const BOOKMARKS_KEY = 'quickBookmarks';
 const DEFAULT_MODEL_FALLBACK = 'gpt-3.5-turbo';
 const PROMPT_HISTORY_KEY = 'promptHistory';
 const PROMPT_HISTORY_LIMIT = 30;
@@ -386,6 +387,7 @@ async function loadSettings() {
   await renderStats();
   renderResponseVarChips();
   await renderProxyList();
+  await renderBookmarkList();
   const history = await getPromptHistory();
   renderPromptHistory(history);
   await loadPotentialWeights();
@@ -404,10 +406,211 @@ async function loadSettings() {
       }
     });
   }
+  
+  // 书签表格输入变化时自动保存（防抖）
+  const bookmarkTableBody = document.getElementById('bookmark-table-body');
+  if (bookmarkTableBody) {
+    let saveTimeout;
+    bookmarkTableBody.addEventListener('input', (e) => {
+      if (e.target.matches('.bookmark-icon-input, .bookmark-name-input, .bookmark-url-input, .bookmark-date-checkbox')) {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+          saveBookmarkListFromTable().catch(console.error);
+        }, 1000);
+      }
+    });
+  }
 }
 
 // 将deleteProxyRow函数暴露到全局，以便onclick使用
 window.deleteProxyRow = deleteProxyRow;
+
+// ========== 书签管理 ==========
+
+// 默认书签数据（与popup.js保持一致）
+const DEFAULT_BOOKMARKS = [
+  {
+    id: 'default_bookmark_1',
+    name: '趋势娱乐',
+    url: 'https://x.com/search?q=lang%3Aja%20within_time%3A12h%20-is%3Aretweet%20filter%3Amedia%20-filter%3Areplies%20since%3A2026-01-14&src=typed_query',
+    icon: '🔥',
+    needsDateUpdate: true
+  },
+  {
+    id: 'default_bookmark_2',
+    name: '精选视觉',
+    url: 'https://x.com/search?q=(NSFW%20OR%20porn%20OR%20adult)%20lang%3Aen%20within_time%3A18h%20-is%3Aretweet%20filter%3Aimages%20-filter%3Asafe%20since%3A2026-01-14&src=typed_query&f=top',
+    icon: '🎨',
+    needsDateUpdate: true
+  },
+  {
+    id: 'default_bookmark_3',
+    name: '热门视频',
+    url: 'https://x.com/search?q=lang%3Aja%20within_time%3A36h%20-is%3Aretweet%20filter%3Avideos%20since%3A2026-01-14&src=typed_query&f=top',
+    icon: '📹',
+    needsDateUpdate: true
+  },
+  {
+    id: 'default_bookmark_4',
+    name: '艺术灵感',
+    url: 'https://x.com/search?q=(NSFW%20OR%20R18%20OR%20%E3%82%A8%E3%83%AD%20OR%20porn)%20within_time%3A12h%20-is%3Aretweet%20filter%3Amedia%20-filter%3Asafe%20since%3A2026-01-14&src=typed_query&f=top',
+    icon: '✨',
+    needsDateUpdate: true
+  },
+  {
+    id: 'default_bookmark_5',
+    name: '创作中心',
+    url: 'https://x.com/i/jf/creators/inspiration/top_posts',
+    icon: '💡',
+    needsDateUpdate: false
+  }
+];
+
+async function getBookmarkList() {
+  const result = await chrome.storage.sync.get([BOOKMARKS_KEY]);
+  const bookmarks = result[BOOKMARKS_KEY];
+  // 如果没有书签，初始化默认书签
+  if (!bookmarks || bookmarks.length === 0) {
+    await chrome.storage.sync.set({ [BOOKMARKS_KEY]: DEFAULT_BOOKMARKS });
+    return DEFAULT_BOOKMARKS;
+  }
+  return bookmarks;
+}
+
+async function saveBookmarkList(bookmarkList) {
+  await chrome.storage.sync.set({ [BOOKMARKS_KEY]: bookmarkList });
+}
+
+// 从表格读取书签列表
+function getBookmarkListFromTable() {
+  const tbody = document.getElementById('bookmark-table-body');
+  if (!tbody) return [];
+
+  const rows = tbody.querySelectorAll('tr[data-bookmark-id]');
+  const bookmarkList = [];
+
+  rows.forEach((row) => {
+    const icon = row.querySelector('.bookmark-icon-input')?.value.trim() || '🔖';
+    const name = row.querySelector('.bookmark-name-input')?.value.trim() || '';
+    const url = row.querySelector('.bookmark-url-input')?.value.trim() || '';
+    const needsDateUpdate = row.querySelector('.bookmark-date-checkbox')?.checked === true;
+    const id = row.dataset.bookmarkId;
+
+    if (name && url) {
+      bookmarkList.push({
+        id: id || `bookmark_${Date.now()}_${bookmarkList.length}`,
+        name,
+        url,
+        icon,
+        needsDateUpdate
+      });
+    }
+  });
+
+  return bookmarkList;
+}
+
+// 渲染书签表格
+async function renderBookmarkList() {
+  const tbody = document.getElementById('bookmark-table-body');
+  if (!tbody) return;
+
+  const bookmarkList = await getBookmarkList();
+
+  if (bookmarkList.length === 0) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">暂无书签，点击上方"添加书签"按钮添加</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = bookmarkList.map((bookmark, index) => {
+    return `
+      <tr data-bookmark-id="${bookmark.id || `bookmark_${Date.now()}_${index}`}">
+        <td>
+          <input type="text" class="bookmark-icon-input" value="${escapeHtml(bookmark.icon || '🔖')}" placeholder="🔖" style="width: 60px; text-align: center;">
+        </td>
+        <td>
+          <input type="text" class="bookmark-name-input" value="${escapeHtml(bookmark.name || '')}" placeholder="书签名称">
+        </td>
+        <td>
+          <input type="text" class="bookmark-url-input" value="${escapeHtml(bookmark.url || '')}" placeholder="https://x.com/...">
+        </td>
+        <td style="text-align: center;">
+          <input type="checkbox" class="bookmark-date-checkbox" ${bookmark.needsDateUpdate === true ? 'checked' : ''}>
+        </td>
+        <td style="text-align: center;">
+          <button type="button" class="delete-btn" onclick="deleteBookmarkRow(this)">删除</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// 添加新书签行
+function addBookmarkRow() {
+  const tbody = document.getElementById('bookmark-table-body');
+  if (!tbody) return;
+
+  // 移除空行提示
+  const emptyRow = tbody.querySelector('.empty-row');
+  if (emptyRow) {
+    emptyRow.remove();
+  }
+
+  const newId = `bookmark_${Date.now()}_${tbody.children.length}`;
+  const newRow = document.createElement('tr');
+  newRow.dataset.bookmarkId = newId;
+  newRow.innerHTML = `
+    <td>
+      <input type="text" class="bookmark-icon-input" value="🔖" placeholder="🔖" style="width: 60px; text-align: center;">
+    </td>
+    <td>
+      <input type="text" class="bookmark-name-input" placeholder="书签名称">
+    </td>
+    <td>
+      <input type="text" class="bookmark-url-input" placeholder="https://x.com/...">
+    </td>
+    <td style="text-align: center;">
+      <input type="checkbox" class="bookmark-date-checkbox" checked>
+    </td>
+    <td style="text-align: center;">
+      <button type="button" class="delete-btn" onclick="deleteBookmarkRow(this)">删除</button>
+    </td>
+  `;
+
+  tbody.appendChild(newRow);
+  
+  // 聚焦到新行的名称输入框
+  const nameInput = newRow.querySelector('.bookmark-name-input');
+  if (nameInput) {
+    nameInput.focus();
+  }
+}
+
+// 删除书签行
+function deleteBookmarkRow(button) {
+  const row = button.closest('tr');
+  if (row && confirm('确定要删除这个书签吗？')) {
+    row.remove();
+    
+    // 如果没有行了，显示空行提示
+    const tbody = document.getElementById('bookmark-table-body');
+    if (tbody && tbody.children.length === 0) {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="5">暂无书签，点击上方"添加书签"按钮添加</td></tr>';
+    }
+    
+    // 自动保存
+    saveBookmarkListFromTable();
+  }
+}
+
+// 从表格保存书签列表
+async function saveBookmarkListFromTable() {
+  const bookmarkList = getBookmarkListFromTable();
+  await saveBookmarkList(bookmarkList);
+}
+
+// 将deleteBookmarkRow函数暴露到全局，以便onclick使用
+window.deleteBookmarkRow = deleteBookmarkRow;
 
 // 代理站列表管理 - 表格编辑
 async function getProxyList() {
@@ -749,6 +952,14 @@ function showStatus(message, type) {
     if (addProxyBtn) {
       addProxyBtn.addEventListener('click', () => {
         addProxyRow();
+      });
+    }
+    
+    // 添加书签按钮
+    const addBookmarkBtn = document.getElementById('add-bookmark-btn');
+    if (addBookmarkBtn) {
+      addBookmarkBtn.addEventListener('click', () => {
+        addBookmarkRow();
       });
     }
 

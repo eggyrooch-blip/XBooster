@@ -204,10 +204,91 @@
     });
   }
 
-  function ensureStyles() {
-    if (document.getElementById('xcomment-batch-style')) {
-      return;
+  function isDarkMode() {
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    // 解析 rgb 值
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (match) {
+      const r = parseInt(match[1]);
+      const g = parseInt(match[2]);
+      const b = parseInt(match[3]);
+      // 如果 RGB 三个值的平均值小于 128，认为是暗黑模式
+      return (r + g + b) / 3 < 128;
     }
+    return false;
+  }
+
+  /**
+   * 获取主题相关颜色（统一管理暗黑/明亮模式颜色）
+   * @returns {Object} 颜色对象
+   */
+  function getThemeColors() {
+    const dark = isDarkMode();
+    return {
+      // 强调色（用于潜力标签、链接等）
+      accent: dark ? '#1da1f2' : '#1d9bf0',
+      // 次要文字色（用于计数器、提示文字等）
+      muted: dark ? 'rgb(139, 152, 165)' : '#657786',
+      // 面板相关
+      panelBg: dark ? 'rgba(32, 35, 39, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+      panelColor: dark ? 'rgb(231, 233, 234)' : '#0f1419',
+      panelBorder: dark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)',
+      panelShadow: dark ? '0 4px 16px rgba(0, 0, 0, 0.4)' : '0 4px 16px rgba(0, 0, 0, 0.15)',
+      // 分割线
+      headerBorder: dark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+      actionsBorder: dark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+      // 背景
+      actionsBg: dark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+      rowBg: dark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+      // 按钮
+      ghostBg: dark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.04)',
+      ghostColor: dark ? 'rgb(231, 233, 234)' : '#0f1419',
+      ghostBorder: dark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)',
+      // 卡片
+      cardBg: dark ? 'rgb(32, 35, 39)' : '#f8f9fb',
+      cardColor: dark ? 'rgb(231, 233, 234)' : '#111',
+      cardBorder: dark ? 'rgb(56, 68, 77)' : '#e3e3e3',
+      // 行
+      rowBorder: dark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+      rowColor: dark ? 'rgb(231, 233, 234)' : '#0f1419',
+      // 已使用状态
+      usedBg: dark ? 'rgb(60, 30, 30)' : '#fff1f0',
+      usedBorder: dark ? 'rgb(139, 92, 92)' : '#f5b0a5',
+      // 已使用按钮状态
+      usedButtonBg: dark ? 'rgba(255, 255, 255, 0.1)' : '#f0f0f0',
+      usedButtonColor: dark ? 'rgba(231, 233, 234, 0.5)' : '#9a9a9a',
+      // 卡片ghost按钮
+      cardGhostBg: dark ? 'rgba(29, 155, 240, 0.2)' : '#e6f3ff',
+      cardGhostColor: dark ? 'rgb(139, 152, 165)' : '#0f1419',
+      // Footer徽标背景
+      footerBadgeBg: dark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.04)',
+      // 情绪按钮活跃状态的阴影背景
+      emoActiveBoxShadow: dark ? 'rgba(32, 35, 39, 0.9)' : 'rgba(255, 255, 255, 0.9)'
+    };
+  }
+
+  function ensureStyles() {
+    // 移除旧样式以支持主题切换
+    const oldStyle = document.getElementById('xcomment-batch-style');
+    if (oldStyle) {
+      oldStyle.remove();
+    }
+    
+    // 统一获取主题颜色
+    const colors = getThemeColors();
+    const {
+      panelBg, panelColor, panelBorder, panelShadow,
+      headerBorder, actionsBg, actionsBorder,
+      ghostBg, ghostColor, ghostBorder,
+      cardBg, cardColor, cardBorder,
+      rowBg, rowBorder, rowColor,
+      usedBg, usedBorder,
+      usedButtonBg, usedButtonColor,
+      cardGhostBg, cardGhostColor,
+      footerBadgeBg, emoActiveBoxShadow,
+      muted
+    } = colors;
+    
     const style = document.createElement('style');
     style.id = 'xcomment-batch-style';
     style.textContent = `
@@ -217,13 +298,13 @@
         bottom: 68px;
         width: 340px;
         max-height: 460px;
-        background: rgba(255, 255, 255, 0.95);
+        background: ${panelBg};
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
-        color: #0f1419;
-        border: 1px solid rgba(0, 0, 0, 0.1);
+        color: ${panelColor};
+        border: 1px solid ${panelBorder};
         border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        box-shadow: ${panelShadow};
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
         z-index: 2147483647;
         display: none;
@@ -236,10 +317,14 @@
         align-items: center;
         justify-content: space-between;
         padding: 10px 12px;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        border-bottom: 1px solid ${headerBorder};
         font-weight: 600;
         font-size: 14px;
-        color: #0f1419;
+        color: ${panelColor};
+      }
+      #xcomment-batch-counter {
+        font-size: 12px;
+        color: ${muted};
       }
       .generating-status {
         display: inline-flex;
@@ -253,7 +338,7 @@
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        color: #657786;
+        color: ${muted};
         font-size: 13px;
       }
       @keyframes pulse {
@@ -264,8 +349,8 @@
         display: flex;
         gap: 8px;
         padding: 8px 12px;
-        background: rgba(0, 0, 0, 0.02);
-        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        background: ${actionsBg};
+        border-bottom: 1px solid ${actionsBorder};
       }
       #${PANEL_ID} button {
         cursor: pointer;
@@ -280,9 +365,9 @@
         color: #fff;
       }
       #${PANEL_ID} .ghost {
-        background: rgba(0, 0, 0, 0.04);
-        color: #0f1419;
-        border: 1px solid rgba(0, 0, 0, 0.1);
+        background: ${ghostBg};
+        color: ${ghostColor};
+        border: 1px solid ${ghostBorder};
       }
       #${PANEL_ID} .muted {
         opacity: 0.6;
@@ -300,7 +385,7 @@
       #xcomment-batch-tabs button {
         flex: 1;
         background: transparent;
-        color: #657786;
+        color: ${muted};
         border: none;
         border-radius: 4px;
         padding: 4px 4px 6px;
@@ -343,54 +428,55 @@
         display: none;
       }
       .xcomment-batch-row {
-        background: rgba(0, 0, 0, 0.02);
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 10px;
+        background: ${rowBg};
+        border: 1px solid ${rowBorder};
+        border-radius: 8px;
         padding: 8px 10px;
         font-size: 13px;
         line-height: 1.4;
-        color: #0f1419;
+        color: ${rowColor};
       }
       .xcomment-batch-row.potential-high {
         border-left: 4px solid #10b981;
-        background: linear-gradient(to right, rgba(16, 185, 129, 0.15), rgba(0, 0, 0, 0.02));
+        background: linear-gradient(to right, rgba(16, 185, 129, 0.15), ${rowBg});
       }
       .xcomment-batch-row.potential-medium {
         border-left: 4px solid #3b82f6;
-        background: linear-gradient(to right, rgba(59, 130, 246, 0.15), rgba(0, 0, 0, 0.02));
+        background: linear-gradient(to right, rgba(59, 130, 246, 0.15), ${rowBg});
       }
       .xcomment-batch-row.potential-low {
         border-left: 4px solid #95a5a6;
-        background: linear-gradient(to right, rgba(149, 165, 166, 0.10), rgba(0, 0, 0, 0.02));
+        background: linear-gradient(to right, rgba(149, 165, 166, 0.10), ${rowBg});
       }
       .xcomment-batch-row .meta {
-        color: #657786;
+        color: ${muted};
         font-size: 11px;
+        margin-top: 3px;
       }
       .${CARD_CLASS} {
         margin-top: 8px;
-        border: 1px solid #e3e3e3;
+        border: 1px solid ${cardBorder};
         border-radius: 12px;
         padding: 10px;
-        background: #f8f9fb;
-        color: #111;
+        background: ${cardBg};
+        color: ${cardColor};
         font-size: 14px;
         line-height: 1.5;
       }
       .${CARD_CLASS}.potential-high {
         border: 2px solid #10b981;
         border-left: 6px solid #10b981;
-        background: linear-gradient(to right, rgba(16, 185, 129, 0.10), #f8f9fb);
+        background: linear-gradient(to right, rgba(16, 185, 129, 0.10), ${cardBg});
       }
       .${CARD_CLASS}.potential-medium {
         border: 2px solid #3b82f6;
         border-left: 6px solid #3b82f6;
-        background: linear-gradient(to right, rgba(59, 130, 246, 0.10), #f8f9fb);
+        background: linear-gradient(to right, rgba(59, 130, 246, 0.10), ${cardBg});
       }
       .${CARD_CLASS}.potential-low {
         border: 2px solid #95a5a6;
         border-left: 6px solid #95a5a6;
-        background: linear-gradient(to right, rgba(149, 165, 166, 0.06), #f8f9fb);
+        background: linear-gradient(to right, rgba(149, 165, 166, 0.06), ${cardBg});
       }
       .${CARD_CLASS} .card-actions {
         margin-top: 8px;
@@ -406,17 +492,20 @@
         font-weight: 600;
       }
       .${CARD_CLASS} button.primary { background: #1d9bf0; color: #fff; }
-      .${CARD_CLASS} button.ghost { background: #e6f3ff; color: #0f1419; }
+      .${CARD_CLASS} button.ghost { 
+        background: ${cardGhostBg}; 
+        color: ${cardGhostColor}; 
+      }
       .${CARD_CLASS}.used {
-        background: #fff1f0;
-        border-color: #f5b0a5;
+        background: ${usedBg};
+        border-color: ${usedBorder};
       }
       .${CARD_CLASS}.used .card-text {
         opacity: 0.75;
       }
       .${CARD_CLASS}.used .card-actions button {
-        background: #f0f0f0;
-        color: #9a9a9a;
+        background: ${usedButtonBg};
+        color: ${usedButtonColor};
         cursor: default;
       }
       .xcomment-highlight {
@@ -424,19 +513,19 @@
         transition: outline 0.3s ease;
       }
       #${FOOTER_ID} {
-        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        border-top: 1px solid ${headerBorder};
         padding: 8px 12px;
         font-size: 12px;
-        color: #657786;
+        color: ${muted};
         display: flex;
         justify-content: space-between;
         align-items: center;
       }
       #${FOOTER_ID} .badge {
-        background: rgba(0, 0, 0, 0.04);
+        background: ${footerBadgeBg};
         border-radius: 10px;
         padding: 4px 8px;
-        color: #0f1419;
+        color: ${panelColor};
         font-weight: 600;
       }
       #${PANEL_TOGGLE_ID} {
@@ -446,14 +535,14 @@
         width: 48px;
         height: 48px;
         border-radius: 50%;
-        background: rgba(255, 255, 255, 0.95);
+        background: ${panelBg};
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
-        color: #0f1419;
+        color: ${panelColor};
         font-size: 24px;
         font-weight: 700;
-        border: 1px solid rgba(0, 0, 0, 0.1);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        border: 1px solid ${panelBorder};
+        box-shadow: ${panelShadow};
         z-index: 2147483646;
         cursor: pointer;
         display: inline-flex;
@@ -468,14 +557,18 @@
         flex-wrap: wrap;
         justify-content: space-between;
         padding: 4px 16px 2px;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        border-bottom: 1px solid ${actionsBorder};
         scrollbar-width: none;
+        min-height: 50px;
       }
       #${EMOTION_LIST_ID}.compact {
         flex-wrap: nowrap;
         overflow-x: auto;
         overflow-y: hidden;
-        padding: 2px 16px 0;
+        padding: 4px 16px;
+        height: 50px;
+        min-height: 50px;
+        max-height: 50px;
       }
       #${EMOTION_LIST_ID} button {
         position: relative;
@@ -512,7 +605,7 @@
         height: 6px;
         border-radius: 50%;
         background: #1c9f4d;
-        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+        box-shadow: 0 0 0 2px ${emoActiveBoxShadow};
       }
       #xcomment-settings-link {
         color: #1d9bf0;
@@ -536,7 +629,7 @@
     panel.innerHTML = `
       <header>
         <span>控制台</span>
-        <span id="xcomment-batch-counter" style="font-size:12px;color:#657786;">0 条</span>
+        <span id="xcomment-batch-counter">0 条</span>
       </header>
       <div id="${EMOTION_LIST_ID}"></div>
       <div class="actions">
@@ -1001,73 +1094,74 @@
   // 检测推文是否可以回复（过滤有回复限制的推文）
   function canReplyToTweet(article) {
     const replyBtn = article.querySelector('[data-testid="reply"]');
-    if (!replyBtn) return false;
-    
-    // 方法1：检查按钮是否被禁用
-    if (replyBtn.disabled || replyBtn.getAttribute('aria-disabled') === 'true') {
+    if (!replyBtn) {
+      console.log('[XBooster] 未找到回复按钮');
       return false;
     }
     
-    // 方法2：检查按钮的SVG子元素颜色（更可靠）
-    // 灰色不可用按钮的SVG通常是 rgb(83, 100, 113) #536471
-    // 黑色可用按钮的SVG是 rgb(15, 20, 25) #0f1419
-    try {
-      const svg = replyBtn.querySelector('svg');
-      if (svg) {
-        const computedStyle = window.getComputedStyle(svg);
-        const color = computedStyle.color || computedStyle.fill;
-        
-        // 检查是否是灰色（X的灰色按钮标准色）
-        if (color && (
-          color.includes('83, 100, 113') || 
-          color.includes('536471') ||
-          color.toLowerCase().includes('#536471')
-        )) {
-          return false; // 灰色按钮，不可回复
-        }
-      }
-    } catch (e) {
-      // 如果无法获取样式，继续检查其他条件
+    // 简化检测：只检查最关键的指标
+    
+    // 方法1：检查按钮是否被禁用（最可靠）
+    if (replyBtn.disabled || replyBtn.getAttribute('aria-disabled') === 'true') {
+      console.log('[XBooster] 回复按钮被禁用（disabled）');
+      return false;
     }
     
-    // 方法3：检查opacity（禁用按钮可能有低opacity）
-    try {
-      const computedStyle = window.getComputedStyle(replyBtn);
-      const opacity = parseFloat(computedStyle.opacity);
-      if (opacity < 0.5) {
-        return false; // 半透明按钮，可能被禁用
-      }
-    } catch (e) {
-      // 忽略错误
+    // 方法2：检查是否有回复限制提示文本
+    // X会在限制回复的推文底部显示特殊提示
+    const restrictionText = article.querySelector('[data-testid="reply-restriction-text"]');
+    if (restrictionText) {
+      console.log('[XBooster] 检测到回复限制提示');
+      return false;
     }
     
-    // 方法4：检查是否有回复限制图标（锁定图标）
-    const lockIcon = article.querySelector('[data-testid="icon-lock"]');
-    if (lockIcon) return false;
+    // 暂时注释掉颜色检测，因为可能不够准确
+    // 只在明确检测到禁用时才过滤
     
+    console.log('[XBooster] 推文可以回复');
     return true; // 默认认为可以回复
   }
 
   async function collectTweets() {
     const articles = Array.from(document.querySelectorAll('article[data-testid="tweet"]'));
+    console.log(`[XBooster] 扫描到 ${articles.length} 个推文元素`);
+    
     const currentUser = document.querySelector('[data-testid="AppTabBar_Profile_Link"]');
     const myHandle = currentUser ? (currentUser.getAttribute('href') || '').split('/')[1] : '';
+    console.log(`[XBooster] 当前用户: ${myHandle || '未检测到'}`);
 
     const list = [];
     articles.forEach((article, idx) => {
       // 跳过回复弹窗内的 article，避免重复生成
-      if (article.closest('div[role="dialog"]')) return;
-      if (article.dataset.xcommentBatchDone === '1') return;
+      if (article.closest('div[role="dialog"]')) {
+        console.log(`[XBooster] 跳过弹窗内推文 #${idx}`);
+        return;
+      }
+      if (article.dataset.xcommentBatchDone === '1') {
+        console.log(`[XBooster] 跳过已处理推文 #${idx}`);
+        return;
+      }
       
       // 检查是否可以回复（过滤有回复限制的推文）
+      console.log(`[XBooster] 检查推文 #${idx} 是否可回复...`);
       if (!canReplyToTweet(article)) {
-        console.log('[XBooster] 跳过无法回复的推文（有回复限制）');
+        console.log(`[XBooster] 跳过无法回复的推文 #${idx}`);
         return;
       }
       
       const content = extractContent(article);
       const handle = extractHandle(article);
-      if (!content || (myHandle && handle === myHandle)) return;
+      console.log(`[XBooster] 推文 #${idx} - 作者: ${handle}, 内容长度: ${content?.length || 0}`);
+      
+      if (!content) {
+        console.log(`[XBooster] 跳过无内容推文 #${idx}`);
+        return;
+      }
+      if (myHandle && handle === myHandle) {
+        console.log(`[XBooster] 跳过自己的推文 #${idx}`);
+        return;
+      }
+      
       const tweetId = extractTweetId(article);
       const tweetUrl = extractTweetUrl(article);
       const dedupKey = tweetId || `${handle || 'unk'}-${content.slice(0, 80)}`;
@@ -1082,8 +1176,11 @@
         replyCount: extractReplyCount(article),
         likeCount: extractLikeCount(article)
       };
+      console.log(`[XBooster] ✅ 添加推文 #${idx} 到队列`);
       list.push(candidate);
     });
+    
+    console.log(`[XBooster] 最终收集到 ${list.length} 条有效推文`);
     return list;
   }
 
@@ -1160,11 +1257,12 @@
     if (task.potentialScore !== undefined) {
       const levelLabels = { high: '潜力高 ⭐⭐⭐', medium: '潜力中 ⭐⭐', low: '潜力低 ⭐' };
       const levelLabel = levelLabels[task.potentialLevel] || '';
-      potentialBadge = levelLabel ? `<span style="color: #1d9bf0; font-weight: 600; margin-right: 8px;">${levelLabel}</span>` : '';
+      const { accent } = getThemeColors();
+      potentialBadge = levelLabel ? `<span style="color: ${accent}; font-weight: 600; margin-right: 8px;">${levelLabel}</span>` : '';
     }
     
     row.innerHTML = `
-      <div>${potentialBadge}${task.preview || task.content.slice(0, 60)}${task.content.length > 60 ? '…' : ''}</div>
+      <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${potentialBadge}${task.preview || task.content.slice(0, 70)}${task.content.length > 70 ? '…' : ''}</div>
       <div class="meta">${task.statusLabel || task.status}${task.potentialScore !== undefined ? ` (${task.potentialScore}分)` : ''}</div>
     `;
     updateSummary();
@@ -1666,8 +1764,9 @@
       card.classList.add(`potential-${task.potentialLevel}`);
     }
     
-    // 如果有多条回复，显示序号
-    const replyLabel = total > 1 ? `<div style="font-size: 11px; color: #657786; margin-bottom: 4px;">回复 ${index}/${total}</div>` : '';
+    // 如果有多条回复，显示序号（根据当前主题动态设置颜色）
+    const { muted } = getThemeColors();
+    const replyLabel = total > 1 ? `<div style="font-size: 11px; color: ${muted}; margin-bottom: 4px;">回复 ${index}/${total}</div>` : '';
     
     card.innerHTML = `
       ${replyLabel}
@@ -1745,6 +1844,11 @@
     // 初始化重试次数
     if (task.retryCount === undefined) {
       task.retryCount = 0;
+    }
+    
+    // 立即标记推文为已处理，避免重复生成
+    if (task.article && task.article.dataset) {
+      task.article.dataset.xcommentBatchDone = '1';
     }
     
     task.status = 'in_progress';
@@ -1865,18 +1969,89 @@
   }
 
   async function init() {
-    ensureStyles();
-    createPanel();
-    await loadCompletedCache();
-    loadEmotions().then(renderEmotions);
-    await refreshTasks();
-    enableToggleDrag();
+    console.log('[XBooster Batch] 开始初始化批量回复面板...');
+    try {
+      ensureStyles();
+      console.log('[XBooster Batch] 样式已应用');
+      
+      createPanel();
+      console.log('[XBooster Batch] 面板已创建');
+      
+      await loadCompletedCache();
+      console.log('[XBooster Batch] 缓存已加载');
+      
+      await loadEmotions();
+      renderEmotions();
+      console.log('[XBooster Batch] 情绪选择器已渲染');
+      
+      await refreshTasks();
+      console.log('[XBooster Batch] 任务已刷新');
+      
+      enableToggleDrag();
+      console.log('[XBooster Batch] 拖拽已启用');
+      
+      // 检查面板和按钮是否正确创建
+      const panel = document.getElementById(PANEL_ID);
+      const toggle = document.getElementById(PANEL_TOGGLE_ID);
+      console.log('[XBooster Batch] 面板存在:', !!panel, '按钮存在:', !!toggle);
+      if (toggle) {
+        const rect = toggle.getBoundingClientRect();
+        console.log('[XBooster Batch] 按钮位置:', {
+          right: toggle.style.right,
+          bottom: toggle.style.bottom,
+          visible: rect.width > 0 && rect.height > 0,
+          rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+        });
+      }
+      
+      // ✅ 默认展开面板
+      if (panel) {
+        panel.classList.add('visible');
+        syncPanelPosition();
+        console.log('[XBooster Batch] 面板已默认展开');
+      }
+      
+      console.log('[XBooster Batch] ✅ 初始化完成');
+    } catch (error) {
+      console.error('[XBooster Batch] ❌ 初始化失败:', error);
+    }
     
     // 监听情绪变化，实时更新选择器
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === 'sync' && changes[EMO_STORAGE_KEY]) {
         loadEmotions().then(renderEmotions);
       }
+    });
+    
+    // 监听主题变化（通过body的background-color变化检测）
+    const themeObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+          // 检测到style变化，重新应用样式
+          ensureStyles();
+          break;
+        }
+      }
+    });
+    
+    themeObserver.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['style']
+    });
+    
+    // 也监听整个文档的背景色变化（通过class变化间接检测）
+    const classObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && (mutation.attributeName === 'class' || mutation.attributeName === 'data-theme')) {
+          ensureStyles();
+          break;
+        }
+      }
+    });
+    
+    classObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme', 'style']
     });
   }
 

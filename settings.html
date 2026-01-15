@@ -257,6 +257,39 @@
       </div>
     </section>
 
+    <section class="settings-card" style="--delay: 330ms;">
+      <div class="card-title-row">
+        <div>
+          <p class="card-kicker">书签</p>
+          <h2>快速书签管理</h2>
+        </div>
+      </div>
+
+      <div class="field">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <label style="margin: 0;">书签列表</label>
+          <button type="button" id="add-bookmark-btn" class="btn-secondary" style="padding: 6px 12px; font-size: 13px;">+ 添加书签</button>
+        </div>
+        <div class="help-text" style="margin-bottom: 16px;">在弹窗中快速访问常用搜索，支持自动更新日期参数</div>
+        <div class="proxy-table-wrapper">
+          <table class="proxy-table">
+            <thead>
+              <tr>
+                <th style="width: 100px;">图标</th>
+                <th style="width: 140px;">名称</th>
+                <th>URL</th>
+                <th style="width: 100px;">自动日期</th>
+                <th style="width: 60px;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="bookmark-table-body">
+              <!-- 书签行将通过JavaScript动态添加 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <details class="settings-card settings-card--collapsible" style="--delay: 360ms;">
       <summary>高级（变量开关 / 调试预览）</summary>
       <div class="card-body">

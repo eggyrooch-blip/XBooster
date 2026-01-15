@@ -527,6 +527,15 @@ textarea:focus {
   margin-right: 0;
 }
 
+/* ========== 书签样式 ========== */
+.bookmarks-card {
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
 .emotion-header {
   display: flex;
   align-items: center;
@@ -590,4 +599,53 @@ textarea:focus {
 .emotion-item.active .emotion-name {
   opacity: 1;
   font-weight: 700;
+}
+
+.bookmarks-grid {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.bookmark-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 8px;
+  background: linear-gradient(135deg, #fafbfd 0%, #f5f7fa 100%);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  color: var(--ink);
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.bookmark-item:hover {
+  background: linear-gradient(135deg, #e8f5fe 0%, #d6ecff 100%);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(27, 110, 214, 0.15);
+}
+
+.bookmark-item:active {
+  transform: translateY(0);
+}
+
+.bookmark-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.bookmark-name {
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--ink);
+  line-height: 1.2;
 }

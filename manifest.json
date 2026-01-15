@@ -3,7 +3,7 @@
   "name": "XBooster",
   "version": "1.0.0",
   "description": "自动阅读帖子内容并生成翻译和评论",
-  "privacy_policy": "https://raw.githubusercontent.com/YOUR_USERNAME/XBooster/main/PRIVACY_POLICY.md",
+  "privacy_policy": "https://raw.githubusercontent.com/eggyrooch-blip/XBooster/main/PRIVACY_POLICY.md",
   "permissions": [
     "activeTab",
     "storage",

@@ -112,7 +112,6 @@
       task.article.dataset.xcommentBatchDone = '1';
     }
     knownTaskIds.add(task.id);
-    markCompleted(task);
     if (!alreadyAccepted) {
       recordStat({ accepted: 1 });
     }
@@ -242,6 +241,25 @@
         font-size: 14px;
         color: #0f1419;
       }
+      .generating-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: #1d9bf0;
+        font-size: 13px;
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+      .idle-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: #657786;
+        font-size: 13px;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
       #${PANEL_ID} .actions {
         display: flex;
         gap: 8px;
@@ -333,6 +351,18 @@
         line-height: 1.4;
         color: #0f1419;
       }
+      .xcomment-batch-row.potential-high {
+        border-left: 4px solid #10b981;
+        background: linear-gradient(to right, rgba(16, 185, 129, 0.15), rgba(0, 0, 0, 0.02));
+      }
+      .xcomment-batch-row.potential-medium {
+        border-left: 4px solid #3b82f6;
+        background: linear-gradient(to right, rgba(59, 130, 246, 0.15), rgba(0, 0, 0, 0.02));
+      }
+      .xcomment-batch-row.potential-low {
+        border-left: 4px solid #95a5a6;
+        background: linear-gradient(to right, rgba(149, 165, 166, 0.10), rgba(0, 0, 0, 0.02));
+      }
       .xcomment-batch-row .meta {
         color: #657786;
         font-size: 11px;
@@ -346,6 +376,21 @@
         color: #111;
         font-size: 14px;
         line-height: 1.5;
+      }
+      .${CARD_CLASS}.potential-high {
+        border: 2px solid #10b981;
+        border-left: 6px solid #10b981;
+        background: linear-gradient(to right, rgba(16, 185, 129, 0.10), #f8f9fb);
+      }
+      .${CARD_CLASS}.potential-medium {
+        border: 2px solid #3b82f6;
+        border-left: 6px solid #3b82f6;
+        background: linear-gradient(to right, rgba(59, 130, 246, 0.10), #f8f9fb);
+      }
+      .${CARD_CLASS}.potential-low {
+        border: 2px solid #95a5a6;
+        border-left: 6px solid #95a5a6;
+        background: linear-gradient(to right, rgba(149, 165, 166, 0.06), #f8f9fb);
       }
       .${CARD_CLASS} .card-actions {
         margin-top: 8px;
@@ -438,8 +483,8 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 0;
-        padding: 0;
+        min-width: 36px;
+        padding: 4px;
         margin: 0;
         background: transparent;
         border: none;
@@ -447,7 +492,12 @@
         font-size: 22px;
       }
       #${EMOTION_LIST_ID}.compact button {
-        font-size: 20px;
+        flex: 0 0 auto;
+        min-width: 40px;
+        width: 40px;
+        height: 40px;
+        font-size: 22px;
+        padding: 4px;
       }
       #${EMOTION_LIST_ID} button.active {
         transform: translateY(-1px);
@@ -493,7 +543,6 @@
         <button id="xcomment-batch-start" class="primary action-btn">开始</button>
         <button id="xcomment-batch-stop" class="ghost action-btn muted">停止</button>
         <button id="xcomment-batch-refresh" class="ghost action-btn">刷新</button>
-        <button id="${RETRY_FAILED_ID}" class="ghost action-btn">重试失败</button>
       </div>
       <div id="xcomment-batch-tabs">
         <button id="${TAB_PENDING_ID}" class="active">待处理</button>
@@ -504,9 +553,8 @@
       <div id="${ACCEPTED_LIST_ID}"></div>
       <div id="${FAILED_LIST_ID}"></div>
       <div id="${FOOTER_ID}">
-        <div class="badge" id="xcomment-batch-summary">待0 / 进行0 / 成功0 / 失败0</div>
-        <div style="font-size:11px;display:flex;gap:8px;align-items:center;">
-          <span>总计 <span id="xcomment-batch-total">0</span></span>
+        <div class="badge" id="xcomment-batch-summary">待0 / 进行0 / 成功0 / 失败0 | 总计0</div>
+        <div style="font-size:11px;">
           <a id="xcomment-settings-link">设置</a>
         </div>
       </div>
@@ -574,19 +622,6 @@
     tabPending?.addEventListener('click', () => activateTab('pending'));
     tabAccepted?.addEventListener('click', () => activateTab('accepted'));
     tabFailed?.addEventListener('click', () => activateTab('failed'));
-
-    const retryFailedBtn = document.getElementById(RETRY_FAILED_ID);
-    if (retryFailedBtn) {
-      retryFailedBtn.addEventListener('click', () => {
-        const failed = tasks.filter((t) => t.status === 'error');
-        failed.forEach((t) => {
-          t.status = 'pending';
-          t.statusLabel = '待生成';
-          renderStatus(t);
-        });
-        launchNext();
-      });
-    }
   }
 
   function templateHasVars(template, keys) {
@@ -700,6 +735,319 @@
     return null;
   }
 
+  // 提取发布时间（返回小时数）
+  function extractPostTime(article) {
+    // 方法1: 查找 time[datetime] 元素
+    const timeEl = article.querySelector('time[datetime]');
+    if (timeEl) {
+      const datetime = timeEl.getAttribute('datetime');
+      if (datetime) {
+        try {
+          const postDate = new Date(datetime);
+          const now = new Date();
+          const diffMs = now - postDate;
+          const diffHours = diffMs / (1000 * 60 * 60);
+          if (diffHours >= 0 && diffHours < 1000) {
+            return diffHours;
+          }
+        } catch (e) {
+          // 日期解析失败，继续尝试其他方法
+        }
+      }
+    }
+    
+    // 方法2: 查找相对时间文本
+    const timeTexts = article.querySelectorAll('span, time, a[href*="/status/"]');
+    for (const el of timeTexts) {
+      const text = (el.textContent || '').trim();
+      // 匹配 "2小时前"、"3h"、"5分钟前" 等格式
+      const hourMatch = text.match(/(\d+)\s*(?:小时|h|hour|hr)/i);
+      if (hourMatch) {
+        return parseFloat(hourMatch[1]);
+      }
+      const minuteMatch = text.match(/(\d+)\s*(?:分钟|min|minute|m)/i);
+      if (minuteMatch) {
+        return parseFloat(minuteMatch[1]) / 60;
+      }
+      // 匹配 "1d"、"2天前" 等格式
+      const dayMatch = text.match(/(\d+)\s*(?:天|d|day)/i);
+      if (dayMatch) {
+        return parseFloat(dayMatch[1]) * 24;
+      }
+    }
+    
+    return null; // 无法提取
+  }
+
+  // 提取回复数
+  function extractReplyCount(article) {
+    const replyBtn = article.querySelector('[data-testid="reply"]');
+    if (!replyBtn) return null;
+    
+    // 查找父容器中的数字
+    let parent = replyBtn.parentElement;
+    let depth = 0;
+    while (parent && depth < 5) {
+      const text = parent.textContent || '';
+      // 匹配数字（可能包含 K、万 等）
+      const match = text.match(/(\d+(?:\.\d+)?)\s*(?:K|k|万|w|M|m)?/);
+      if (match) {
+        let num = parseFloat(match[1]);
+        const unit = text.substring(match.index + match[0].length - 1, match.index + match[0].length);
+        if (unit === 'K' || unit === 'k') {
+          num *= 1000;
+        } else if (unit === '万' || unit === 'w') {
+          num *= 10000;
+        } else if (unit === 'M' || unit === 'm') {
+          num *= 1000000;
+        }
+        return Math.floor(num);
+      }
+      parent = parent.parentElement;
+      depth++;
+    }
+    
+    return null;
+  }
+
+  // 提取点赞数
+  function extractLikeCount(article) {
+    const likeBtn = article.querySelector('[data-testid="like"]');
+    if (!likeBtn) return null;
+    
+    let parent = likeBtn.parentElement;
+    let depth = 0;
+    while (parent && depth < 5) {
+      const text = parent.textContent || '';
+      const match = text.match(/(\d+(?:\.\d+)?)\s*(?:K|k|万|w|M|m)?/);
+      if (match) {
+        let num = parseFloat(match[1]);
+        const unit = text.substring(match.index + match[0].length - 1, match.index + match[0].length);
+        if (unit === 'K' || unit === 'k') {
+          num *= 1000;
+        } else if (unit === '万' || unit === 'w') {
+          num *= 10000;
+        } else if (unit === 'M' || unit === 'm') {
+          num *= 1000000;
+        }
+        return Math.floor(num);
+      }
+      parent = parent.parentElement;
+      depth++;
+    }
+    
+    return null;
+  }
+
+  // 计算时间得分（0-100）
+  function calculateTimeScore(hours) {
+    if (hours === null || hours === undefined) return 50; // 默认中等
+    
+    if (hours >= 2 && hours <= 8) {
+      return 100; // 最佳窗口
+    } else if ((hours >= 1 && hours < 2) || (hours > 8 && hours <= 10)) {
+      return 60; // 次优
+    } else {
+      return 20; // 其他
+    }
+  }
+
+  // 计算竞争得分（0-100）
+  function calculateCompetitionScore(replyCount) {
+    if (replyCount === null || replyCount === undefined) return 50; // 默认中等
+    
+    if (replyCount < 30) {
+      return 100; // 竞争小
+    } else if (replyCount >= 30 && replyCount < 50) {
+      return 60; // 中等竞争
+    } else if (replyCount >= 50 && replyCount < 100) {
+      return 30; // 竞争较大
+    } else {
+      return 10; // 竞争很大
+    }
+  }
+
+  // 计算潜力指数
+  async function calculatePotentialScore(task) {
+    const settings = await chrome.storage.sync.get([
+      'potentialTimeWeight',
+      'potentialCompetitionWeight'
+    ]);
+    
+    const timeWeight = settings.potentialTimeWeight ?? 0.5;
+    const competitionWeight = settings.potentialCompetitionWeight ?? 0.5;
+    
+    const timeScore = calculateTimeScore(task.postTime);
+    const competitionScore = calculateCompetitionScore(task.replyCount);
+    
+    const totalScore = timeScore * timeWeight + competitionScore * competitionWeight;
+    
+    return Math.round(totalScore);
+  }
+
+  // 获取潜力等级
+  async function getPotentialLevel(score) {
+    const settings = await chrome.storage.sync.get([
+      'potentialHighThreshold',
+      'potentialMediumThreshold'
+    ]);
+    
+    const highThreshold = settings.potentialHighThreshold ?? 70;
+    const mediumThreshold = settings.potentialMediumThreshold ?? 40;
+    
+    if (score >= highThreshold) {
+      return 'high'; // 3条回复
+    } else if (score >= mediumThreshold) {
+      return 'medium'; // 2条回复
+    } else {
+      return 'low'; // 1条回复
+    }
+  }
+
+  // 拆分回复为多条（智能拆分，避免逗号开头）
+  function splitCommentIntoReplies(comment, count) {
+    if (count <= 1) return [comment];
+    
+    // 先尝试按段落拆分（双换行、单换行）
+    const paragraphs = comment.split(/\n\s*\n+/).filter(p => p.trim());
+    if (paragraphs.length >= count) {
+      // 如果段落数足够，按段落拆分
+      const paragraphsPerReply = Math.ceil(paragraphs.length / count);
+      const replies = [];
+      for (let i = 0; i < count; i++) {
+        const start = i * paragraphsPerReply;
+        const end = Math.min(start + paragraphsPerReply, paragraphs.length);
+        const replyText = paragraphs.slice(start, end).join('\n').trim();
+        if (replyText && !replyText.match(/^[，,。.！!？?；;：:]/)) {
+          replies.push(replyText);
+        }
+      }
+      if (replies.length === count) return replies;
+    }
+    
+    // 备用方案：按句子拆分（支持中英文标点）
+    // 保留标点符号，但过滤掉空字符串
+    const parts = comment.split(/([。！？.!?]\s*)/);
+    const sentences = [];
+    for (let i = 0; i < parts.length; i += 2) {
+      const sentence = parts[i] + (parts[i + 1] || '');
+      if (sentence.trim()) {
+        sentences.push(sentence.trim());
+      }
+    }
+    
+    if (sentences.length === 0) return [comment];
+    
+    // 计算每条回复应该包含的句子数
+    const sentencesPerReply = Math.ceil(sentences.length / count);
+    const replies = [];
+    
+    for (let i = 0; i < count; i++) {
+      const start = i * sentencesPerReply;
+      const end = Math.min(start + sentencesPerReply, sentences.length);
+      let replyText = sentences.slice(start, end).join('').trim();
+      
+      // 清理开头：移除开头的逗号、句号等标点
+      replyText = replyText.replace(/^[，,。.！!？?；;：:\s]+/, '');
+      
+      // 确保不是空字符串，且不以标点开头
+      if (replyText && !replyText.match(/^[，,。.！!？?；;：:]/)) {
+        replies.push(replyText);
+      } else if (replyText) {
+        // 如果清理后还有内容但以标点开头，尝试找到第一个非标点字符
+        const firstNonPunct = replyText.match(/[^，,。.！!？?；;：:\s]/);
+        if (firstNonPunct) {
+          const index = replyText.indexOf(firstNonPunct[0]);
+          replyText = replyText.substring(index);
+          if (replyText) replies.push(replyText);
+        }
+      }
+    }
+    
+    // 如果拆分后数量不足，尝试更宽松的拆分
+    if (replies.length < count && sentences.length > 0) {
+      // 重新分配，确保每条都有内容
+      const newReplies = [];
+      const targetPerReply = Math.floor(sentences.length / count);
+      let currentIndex = 0;
+      
+      for (let i = 0; i < count; i++) {
+        const take = i < count - 1 ? targetPerReply : sentences.length - currentIndex;
+        let replyText = sentences.slice(currentIndex, currentIndex + take).join('').trim();
+        replyText = replyText.replace(/^[，,。.！!？?；;：:\s]+/, '');
+        
+        if (replyText && !replyText.match(/^[，,。.！!？?；;：:]/)) {
+          newReplies.push(replyText);
+        } else if (replyText) {
+          // 最后尝试：如果还是以标点开头，至少保证有内容
+          newReplies.push(replyText);
+        }
+        currentIndex += take;
+      }
+      
+      if (newReplies.length > 0) {
+        return newReplies.slice(0, count);
+      }
+    }
+    
+    // 最后的兜底：如果还是不够，至少返回原回复
+    if (replies.length === 0) {
+      return [comment];
+    }
+    
+    return replies.slice(0, count);
+  }
+
+  // 检测推文是否可以回复（过滤有回复限制的推文）
+  function canReplyToTweet(article) {
+    const replyBtn = article.querySelector('[data-testid="reply"]');
+    if (!replyBtn) return false;
+    
+    // 方法1：检查按钮是否被禁用
+    if (replyBtn.disabled || replyBtn.getAttribute('aria-disabled') === 'true') {
+      return false;
+    }
+    
+    // 方法2：检查按钮的SVG子元素颜色（更可靠）
+    // 灰色不可用按钮的SVG通常是 rgb(83, 100, 113) #536471
+    // 黑色可用按钮的SVG是 rgb(15, 20, 25) #0f1419
+    try {
+      const svg = replyBtn.querySelector('svg');
+      if (svg) {
+        const computedStyle = window.getComputedStyle(svg);
+        const color = computedStyle.color || computedStyle.fill;
+        
+        // 检查是否是灰色（X的灰色按钮标准色）
+        if (color && (
+          color.includes('83, 100, 113') || 
+          color.includes('536471') ||
+          color.toLowerCase().includes('#536471')
+        )) {
+          return false; // 灰色按钮，不可回复
+        }
+      }
+    } catch (e) {
+      // 如果无法获取样式，继续检查其他条件
+    }
+    
+    // 方法3：检查opacity（禁用按钮可能有低opacity）
+    try {
+      const computedStyle = window.getComputedStyle(replyBtn);
+      const opacity = parseFloat(computedStyle.opacity);
+      if (opacity < 0.5) {
+        return false; // 半透明按钮，可能被禁用
+      }
+    } catch (e) {
+      // 忽略错误
+    }
+    
+    // 方法4：检查是否有回复限制图标（锁定图标）
+    const lockIcon = article.querySelector('[data-testid="icon-lock"]');
+    if (lockIcon) return false;
+    
+    return true; // 默认认为可以回复
+  }
+
   async function collectTweets() {
     const articles = Array.from(document.querySelectorAll('article[data-testid="tweet"]'));
     const currentUser = document.querySelector('[data-testid="AppTabBar_Profile_Link"]');
@@ -710,6 +1058,13 @@
       // 跳过回复弹窗内的 article，避免重复生成
       if (article.closest('div[role="dialog"]')) return;
       if (article.dataset.xcommentBatchDone === '1') return;
+      
+      // 检查是否可以回复（过滤有回复限制的推文）
+      if (!canReplyToTweet(article)) {
+        console.log('[XBooster] 跳过无法回复的推文（有回复限制）');
+        return;
+      }
+      
       const content = extractContent(article);
       const handle = extractHandle(article);
       if (!content || (myHandle && handle === myHandle)) return;
@@ -722,9 +1077,11 @@
         tweetUrl,
         article,
         content,
-        authorHandle: handle
+        authorHandle: handle,
+        postTime: extractPostTime(article),
+        replyCount: extractReplyCount(article),
+        likeCount: extractLikeCount(article)
       };
-      if (isCompleted(candidate)) return;
       list.push(candidate);
     });
     return list;
@@ -740,19 +1097,22 @@
   function updateSummary() {
     const header = document.getElementById('xcomment-batch-counter');
     const footerSummary = document.getElementById('xcomment-batch-summary');
-    const totalEl = document.getElementById('xcomment-batch-total');
     if (!header) return;
     const pending = tasks.filter((t) => t.status === 'pending').length;
     const runningCount = tasks.filter((t) => t.status === 'in_progress').length;
     const done = tasks.filter((t) => t.status === 'done').length;
     const failed = tasks.filter((t) => t.status === 'error').length;
-    const summaryText = `待${pending} / 进行${runningCount} / 成功${done} / 失败${failed}`;
-    header.textContent = summaryText;
-    if (footerSummary) {
-      footerSummary.textContent = summaryText;
+    
+    // 右上角显示状态（始终显示，运行时带动画）
+    if (running && runningCount > 0) {
+      header.innerHTML = '<span class="generating-status"><img src="' + TOGGLE_ICON_URL + '" style="width:16px;height:16px;"> 生成中...</span>';
+    } else {
+      header.innerHTML = '<span class="idle-status"><img src="' + TOGGLE_ICON_URL + '" style="width:16px;height:16px;opacity:0.6;"> 待命中</span>';
     }
-    if (totalEl) {
-      totalEl.textContent = tasks.length;
+    
+    // 左下角显示完整统计
+    if (footerSummary) {
+      footerSummary.textContent = `待${pending} / 进行${runningCount} / 成功${done} / 失败${failed} | 总计${tasks.length}`;
     }
 
     // 根据是否有任务内容，切换情绪栏布局（有内容时压缩为单行）
@@ -788,9 +1148,24 @@
       targetList.appendChild(row);
     }
     row.dataset.status = task.status;
+    
+    // 添加潜力等级class
+    row.classList.remove('potential-high', 'potential-medium', 'potential-low');
+    if (task.potentialLevel) {
+      row.classList.add(`potential-${task.potentialLevel}`);
+    }
+    
+    // 构建潜力指数标签
+    let potentialBadge = '';
+    if (task.potentialScore !== undefined) {
+      const levelLabels = { high: '潜力高 ⭐⭐⭐', medium: '潜力中 ⭐⭐', low: '潜力低 ⭐' };
+      const levelLabel = levelLabels[task.potentialLevel] || '';
+      potentialBadge = levelLabel ? `<span style="color: #1d9bf0; font-weight: 600; margin-right: 8px;">${levelLabel}</span>` : '';
+    }
+    
     row.innerHTML = `
-      <div>${task.preview || task.content.slice(0, 60)}${task.content.length > 60 ? '…' : ''}</div>
-      <div class="meta">${task.statusLabel || task.status}</div>
+      <div>${potentialBadge}${task.preview || task.content.slice(0, 60)}${task.content.length > 60 ? '…' : ''}</div>
+      <div class="meta">${task.statusLabel || task.status}${task.potentialScore !== undefined ? ` (${task.potentialScore}分)` : ''}</div>
     `;
     updateSummary();
   }
@@ -1054,7 +1429,7 @@
     }
   }
 
-  function buildPromptBody(template, task, config) {
+  function buildPromptBody(template, task, config, potentialLevel = 'low') {
     const includeAuthor = config.includeAuthor !== false;
     const includeTone = config.includeTone !== false;
     const postLanguage = detectPostLanguage(task.content);
@@ -1073,8 +1448,16 @@
       toneLabel = currentEmotion?.name || '';
     }
 
+    // 根据潜力等级添加长度和拆分提示
+    let lengthInstruction = '';
+    if (potentialLevel === 'high') {
+      lengthInstruction = '\n\n【重要：此回复可能需要拆分成3条发送】\n- 请生成一条较长的、内容丰富的回复（建议150-250字符，包含多个观点或细节）。\n- 回复应该自然地包含多个完整的语义段落，每个段落可以独立成一条回复。\n- 避免在逗号处断开，优先在完整的观点或话题转换处自然分段。\n- 确保每条拆分后的回复开头都是完整的句子，不要以逗号、句号或其他标点开头。';
+    } else if (potentialLevel === 'medium') {
+      lengthInstruction = '\n\n【重要：此回复可能需要拆分成2条发送】\n- 请生成一条中等长度的回复（建议100-180字符，包含2-3个观点或细节）。\n- 回复应该自然地包含2个完整的语义段落，每个段落可以独立成一条回复。\n- 避免在逗号处断开，优先在完整的观点转换处自然分段。\n- 确保每条拆分后的回复开头都是完整的句子，不要以逗号、句号或其他标点开头。';
+    }
+
     const templateHasVar = templateHasVars(template, RESPONSE_TEMPLATE_KEYS);
-    const body = replaceTemplateVars(template, {
+    let body = replaceTemplateVars(template, {
       author_handle: includeAuthor && task.authorHandle ? `@${task.authorHandle}` : '',
       content: task.content,
       reply_content: task.content,
@@ -1085,6 +1468,18 @@
       tone_label: toneLabel,
       locale
     });
+    
+    // 如果模板中没有使用变量，追加长度提示
+    if (!templateHasVar && lengthInstruction) {
+      body += lengthInstruction;
+    } else if (templateHasVar && lengthInstruction) {
+      // 如果使用了变量，在任务描述后追加
+      body = body.replace(
+        /任务：根据以下帖子内容，生成1条（仅一条）自然回复。/,
+        `任务：根据以下帖子内容，生成1条（仅一条）自然回复。${lengthInstruction}`
+      );
+    }
+    
     return body;
   }
 
@@ -1257,7 +1652,7 @@
     return false;
   }
 
-  function addInlineCard(task, text) {
+  function addInlineCard(task, text, index = 1, total = 1) {
     // 尝试重新绑定文章
     if (!task.article || !task.article.isConnected) {
       task.article = findArticleByTweetId(task.tweetId);
@@ -1265,7 +1660,17 @@
 
     const card = document.createElement('div');
     card.className = CARD_CLASS;
+    
+    // 添加潜力等级class
+    if (task.potentialLevel) {
+      card.classList.add(`potential-${task.potentialLevel}`);
+    }
+    
+    // 如果有多条回复，显示序号
+    const replyLabel = total > 1 ? `<div style="font-size: 11px; color: #657786; margin-bottom: 4px;">回复 ${index}/${total}</div>` : '';
+    
     card.innerHTML = `
+      ${replyLabel}
       <div class="card-text">${text}</div>
       <div class="card-actions">
         <button type="button" data-action="fill" class="primary">填入输入框</button>
@@ -1337,25 +1742,71 @@
   }
 
   async function processTask(task) {
+    // 初始化重试次数
+    if (task.retryCount === undefined) {
+      task.retryCount = 0;
+    }
+    
     task.status = 'in_progress';
     task.statusLabel = '生成中...';
     renderStatus(task);
     try {
+      // 计算潜力指数
+      const potentialScore = await calculatePotentialScore(task);
+      const potentialLevel = await getPotentialLevel(potentialScore);
+      task.potentialScore = potentialScore;
+      task.potentialLevel = potentialLevel;
+      
+      // 根据潜力等级决定回复数量
+      const replyCount = potentialLevel === 'high' ? 3 : potentialLevel === 'medium' ? 2 : 1;
+      
       const config = await loadTemplateConfig();
-      const prompt = buildPromptBody(config.template, task, config);
+      const prompt = buildPromptBody(config.template, task, config, potentialLevel);
       const comment = await sendGenerateComment(prompt);
       const cleaned = cleanComment(comment);
-      addInlineCard(task, cleaned);
+      
+      // 拆分回复为多条
+      const replies = splitCommentIntoReplies(cleaned, replyCount);
+      
+      // 为每条回复添加卡片
+      replies.forEach((replyText, index) => {
+        addInlineCard(task, replyText, index + 1, replies.length);
+      });
+      
       task.status = 'done';
-      task.statusLabel = '已生成';
+      task.statusLabel = `已生成${replies.length}条`;
       renderStatus(task);
       recordStat({ total: 1, success: 1 });
+      activeCount -= 1;
+      launchNext();
     } catch (error) {
-      task.status = 'error';
-      task.statusLabel = `失败：${error.message}`;
+      // 自动重试逻辑：最多重试2次
+      if (task.retryCount < 2) {
+        task.retryCount += 1;
+        task.status = 'pending';
+        task.statusLabel = `重试中(${task.retryCount}/2)...`;
+        renderStatus(task);
+        // 延迟1秒后重试
+        activeCount -= 1;
+        launchNext(); // 继续处理其他任务
+        setTimeout(() => {
+          if (running) {
+            activeCount += 1;
+            processTask(task);
+          }
+        }, 1000);
+        return;
+      }
+      
+      // 重试2次后仍失败，插入随机emoji作为fallback
+      const fallbackEmojis = ['😄😄😄', '😊😊😊', '👍👍👍', '🎉🎉🎉', '✨✨✨', '💯💯💯', '🔥🔥🔥'];
+      const randomEmoji = fallbackEmojis[Math.floor(Math.random() * fallbackEmojis.length)];
+      addInlineCard(task, randomEmoji, 1, 1);
+      
+      task.status = 'done';
+      task.statusLabel = `已插入fallback`;
       renderStatus(task);
-      recordStat({ total: 1, fail: 1 });
-    } finally {
+      recordStat({ total: 1, success: 1 }); // 算作成功，因为有fallback
       activeCount -= 1;
       launchNext();
     }
@@ -1392,6 +1843,7 @@
     autoPaused = false;
     setButtonsState({ startDisabled: true, stopDisabled: false });
     activeCount = 0;
+    updateSummary();
     startAutoWatch();
     launchNext();
   }
@@ -1419,6 +1871,13 @@
     loadEmotions().then(renderEmotions);
     await refreshTasks();
     enableToggleDrag();
+    
+    // 监听情绪变化，实时更新选择器
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'sync' && changes[EMO_STORAGE_KEY]) {
+        loadEmotions().then(renderEmotions);
+      }
+    });
   }
 
   if (document.readyState === 'loading') {

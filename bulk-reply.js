@@ -102,7 +102,7 @@
       // ignore write errors
     }
   }
-  function markTaskAsUsed(task, card) {
+  async function markTaskAsUsed(task, card) {
     if (!task) return;
     const alreadyAccepted = task.status === 'accepted';
     task.status = 'accepted';
@@ -115,6 +115,8 @@
     if (!alreadyAccepted) {
       recordStat({ accepted: 1 });
     }
+    // ✅ 标记任务为已完成，防止重复处理
+    await markCompleted(task);
     if (card) {
       card.classList.add('used');
       const fillBtn = card.querySelector('button[data-action="fill"]');
@@ -1095,7 +1097,6 @@
   function canReplyToTweet(article) {
     const replyBtn = article.querySelector('[data-testid="reply"]');
     if (!replyBtn) {
-      console.log('[XBooster] 未找到回复按钮');
       return false;
     }
     
@@ -1103,7 +1104,6 @@
     
     // 方法1：检查按钮是否被禁用（最可靠）
     if (replyBtn.disabled || replyBtn.getAttribute('aria-disabled') === 'true') {
-      console.log('[XBooster] 回复按钮被禁用（disabled）');
       return false;
     }
     
@@ -1111,60 +1111,55 @@
     // X会在限制回复的推文底部显示特殊提示
     const restrictionText = article.querySelector('[data-testid="reply-restriction-text"]');
     if (restrictionText) {
-      console.log('[XBooster] 检测到回复限制提示');
       return false;
     }
     
-    // 暂时注释掉颜色检测，因为可能不够准确
-    // 只在明确检测到禁用时才过滤
-    
-    console.log('[XBooster] 推文可以回复');
     return true; // 默认认为可以回复
   }
 
   async function collectTweets() {
     const articles = Array.from(document.querySelectorAll('article[data-testid="tweet"]'));
-    console.log(`[XBooster] 扫描到 ${articles.length} 个推文元素`);
     
     const currentUser = document.querySelector('[data-testid="AppTabBar_Profile_Link"]');
     const myHandle = currentUser ? (currentUser.getAttribute('href') || '').split('/')[1] : '';
-    console.log(`[XBooster] 当前用户: ${myHandle || '未检测到'}`);
 
     const list = [];
+    let skipped = { dialog: 0, marked: 0, noReply: 0, noContent: 0, self: 0, completed: 0 };
+    
     articles.forEach((article, idx) => {
       // 跳过回复弹窗内的 article，避免重复生成
       if (article.closest('div[role="dialog"]')) {
-        console.log(`[XBooster] 跳过弹窗内推文 #${idx}`);
+        skipped.dialog++;
         return;
       }
       if (article.dataset.xcommentBatchDone === '1') {
-        console.log(`[XBooster] 跳过已处理推文 #${idx}`);
+        skipped.marked++;
         return;
       }
       
       // 检查是否可以回复（过滤有回复限制的推文）
-      console.log(`[XBooster] 检查推文 #${idx} 是否可回复...`);
       if (!canReplyToTweet(article)) {
-        console.log(`[XBooster] 跳过无法回复的推文 #${idx}`);
+        skipped.noReply++;
         return;
       }
       
       const content = extractContent(article);
       const handle = extractHandle(article);
-      console.log(`[XBooster] 推文 #${idx} - 作者: ${handle}, 内容长度: ${content?.length || 0}`);
       
       if (!content) {
-        console.log(`[XBooster] 跳过无内容推文 #${idx}`);
+        skipped.noContent++;
         return;
       }
       if (myHandle && handle === myHandle) {
-        console.log(`[XBooster] 跳过自己的推文 #${idx}`);
+        skipped.self++;
         return;
       }
       
       const tweetId = extractTweetId(article);
       const tweetUrl = extractTweetUrl(article);
       const dedupKey = tweetId || `${handle || 'unk'}-${content.slice(0, 80)}`;
+      
+      // ✅ 构建候选任务
       const candidate = {
         id: dedupKey || `${Date.now()}-${idx}`,
         tweetId,
@@ -1176,11 +1171,19 @@
         replyCount: extractReplyCount(article),
         likeCount: extractLikeCount(article)
       };
-      console.log(`[XBooster] ✅ 添加推文 #${idx} 到队列`);
+      
+      // ✅ 检查是否已经完成过（使用持久化的完成记录）
+      if (isCompleted(candidate)) {
+        skipped.completed++;
+        // 即使已完成，也标记该article，避免重复检查
+        article.dataset.xcommentBatchDone = '1';
+        return;
+      }
+      
       list.push(candidate);
     });
     
-    console.log(`[XBooster] 最终收集到 ${list.length} 条有效推文`);
+    console.log(`[XBooster] 扫描: ${articles.length}条推文, 收集: ${list.length}条, 跳过: 弹窗${skipped.dialog} 已标记${skipped.marked} 已完成${skipped.completed} 无回复${skipped.noReply} 无内容${skipped.noContent} 自己${skipped.self}`);
     return list;
   }
 
@@ -1755,9 +1758,21 @@
     if (!task.article || !task.article.isConnected) {
       task.article = findArticleByTweetId(task.tweetId);
     }
+    
+    // ✅ 检查是否已经有回复卡片了，避免重复添加
+    if (task.article) {
+      const existingCards = task.article.querySelectorAll(`.${CARD_CLASS}`);
+      if (existingCards.length >= total) {
+        console.log(`[XBooster] 跳过重复添加卡片: 推文已有${existingCards.length}个卡片`);
+        return;
+      }
+    }
 
     const card = document.createElement('div');
     card.className = CARD_CLASS;
+    // ✅ 添加唯一标识，防止重复添加
+    card.dataset.taskId = task.id;
+    card.dataset.replyIndex = `${index}-${total}`;
     
     // 添加潜力等级class
     if (task.potentialLevel) {
@@ -1780,7 +1795,7 @@
     copyBtn.addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(text);
-        markTaskAsUsed(task, card);
+        await markTaskAsUsed(task, card);
       } catch (e) {
         copyBtn.textContent = '复制失败';
       }
@@ -1804,7 +1819,7 @@
           }
           const ok = await setInputText(inputEl, text);
           if (ok) {
-            markTaskAsUsed(task, card);
+            await markTaskAsUsed(task, card);
           } else {
             fillBtn.textContent = '填入失败';
             setTimeout(() => {
@@ -1846,12 +1861,31 @@
       task.retryCount = 0;
     }
     
-    // 立即标记推文为已处理，避免重复生成
+    // ✅ 防止重复处理：如果已完成，直接返回（但允许重试）
+    if (task.status === 'done') {
+      console.log(`[XBooster] 跳过已完成任务: ${task.id}`);
+      activeCount -= 1;
+      return;
+    }
+    
+    // ✅ 如果不是重试，检查是否已在处理队列中
+    if (task.retryCount === 0 && knownTaskIds.has(task.id)) {
+      console.log(`[XBooster] 跳过重复任务: ${task.id}`);
+      activeCount -= 1;
+      return;
+    }
+    
+    // ✅ 立即标记推文为已处理，避免重复生成（在所有操作之前）
     if (task.article && task.article.dataset) {
       task.article.dataset.xcommentBatchDone = '1';
     }
     
-    task.status = 'in_progress';
+    // ✅ 立即添加到已知任务集合，防止并发重复
+    knownTaskIds.add(task.id);
+    
+    // ✅ 预先标记为已完成，防止页面刷新时重复处理
+    await markCompleted(task);
+    
     task.statusLabel = '生成中...';
     renderStatus(task);
     try {
@@ -1887,15 +1921,17 @@
       // 自动重试逻辑：最多重试2次
       if (task.retryCount < 2) {
         task.retryCount += 1;
-        task.status = 'pending';
+        // ✅ 不重置为pending，保持in_progress状态，防止被launchNext重复启动
         task.statusLabel = `重试中(${task.retryCount}/2)...`;
         renderStatus(task);
         // 延迟1秒后重试
         activeCount -= 1;
         launchNext(); // 继续处理其他任务
         setTimeout(() => {
-          if (running) {
+          if (running && !stopRequested) {
+            console.log(`[XBooster] 重试任务 ${task.id}, 第${task.retryCount}次重试`);
             activeCount += 1;
+            task.status = 'in_progress';
             processTask(task);
           }
         }, 1000);
@@ -1922,10 +1958,22 @@
       return;
     }
     if (!running) return;
-    const next = tasks.find((t) => t.status === 'pending');
+    
+    // ✅ 查找待处理的任务，排除已知任务
+    const next = tasks.find((t) => t.status === 'pending' && !knownTaskIds.has(t.id));
     if (!next) {
+      // ✅ 如果没有更多待处理任务，且所有任务都完成了，停止批处理
+      if (activeCount === 0) {
+        const hasMorePending = tasks.some((t) => t.status === 'pending');
+        if (!hasMorePending) {
+          console.log('[XBooster] 所有任务已完成');
+        }
+      }
       return;
     }
+    
+    // ✅ 立即标记为正在处理，防止重复启动
+    next.status = 'in_progress';
     activeCount += 1;
     processTask(next);
     if (activeCount < MAX_CONCURRENCY) {
@@ -1969,49 +2017,23 @@
   }
 
   async function init() {
-    console.log('[XBooster Batch] 开始初始化批量回复面板...');
     try {
       ensureStyles();
-      console.log('[XBooster Batch] 样式已应用');
-      
       createPanel();
-      console.log('[XBooster Batch] 面板已创建');
-      
       await loadCompletedCache();
-      console.log('[XBooster Batch] 缓存已加载');
-      
       await loadEmotions();
       renderEmotions();
-      console.log('[XBooster Batch] 情绪选择器已渲染');
-      
       await refreshTasks();
-      console.log('[XBooster Batch] 任务已刷新');
-      
       enableToggleDrag();
-      console.log('[XBooster Batch] 拖拽已启用');
-      
-      // 检查面板和按钮是否正确创建
-      const panel = document.getElementById(PANEL_ID);
-      const toggle = document.getElementById(PANEL_TOGGLE_ID);
-      console.log('[XBooster Batch] 面板存在:', !!panel, '按钮存在:', !!toggle);
-      if (toggle) {
-        const rect = toggle.getBoundingClientRect();
-        console.log('[XBooster Batch] 按钮位置:', {
-          right: toggle.style.right,
-          bottom: toggle.style.bottom,
-          visible: rect.width > 0 && rect.height > 0,
-          rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
-        });
-      }
       
       // ✅ 默认展开面板
+      const panel = document.getElementById(PANEL_ID);
       if (panel) {
         panel.classList.add('visible');
         syncPanelPosition();
-        console.log('[XBooster Batch] 面板已默认展开');
       }
       
-      console.log('[XBooster Batch] ✅ 初始化完成');
+      console.log('[XBooster Batch] ✅ 批量回复面板初始化完成');
     } catch (error) {
       console.error('[XBooster Batch] ❌ 初始化失败:', error);
     }

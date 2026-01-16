@@ -1759,11 +1759,13 @@
       task.article = findArticleByTweetId(task.tweetId);
     }
     
-    // ✅ 检查是否已经有回复卡片了，避免重复添加
+    // ✅ 检查是否已有相同 index 的卡片（精确防重复）
     if (task.article) {
-      const existingCards = task.article.querySelectorAll(`.${CARD_CLASS}`);
-      if (existingCards.length >= total) {
-        console.log(`[XBooster] 跳过重复添加卡片: 推文已有${existingCards.length}个卡片`);
+      const existingIndexCard = task.article.querySelector(
+        `.${CARD_CLASS}[data-task-id="${task.id}"][data-reply-index="${index}-${total}"]`
+      );
+      if (existingIndexCard) {
+        console.log(`[XBooster] 跳过重复添加卡片: 任务 ${task.id} 的第 ${index}/${total} 条已存在`);
         return;
       }
     }
@@ -1861,18 +1863,23 @@
       task.retryCount = 0;
     }
     
-    // ✅ 防止重复处理：如果已完成，直接返回（但允许重试）
-    if (task.status === 'done') {
+    // ✅ 防止重复处理：如果已完成，直接返回
+    if (task.status === 'done' && task.retryCount === 0) {
       console.log(`[XBooster] 跳过已完成任务: ${task.id}`);
       activeCount -= 1;
       return;
     }
     
-    // ✅ 如果不是重试，检查是否已在处理队列中
-    if (task.retryCount === 0 && knownTaskIds.has(task.id)) {
-      console.log(`[XBooster] 跳过重复任务: ${task.id}`);
-      activeCount -= 1;
-      return;
+    // ✅ 检查推文是否已有回复卡片（最强防御，仅针对非重试）
+    if (task.article && task.retryCount === 0) {
+      const existingCards = task.article.querySelectorAll(`.${CARD_CLASS}[data-task-id="${task.id}"]`);
+      if (existingCards.length > 0) {
+        console.log(`[XBooster] 跳过已有卡片的任务: ${task.id}（已有${existingCards.length}个卡片）`);
+        task.status = 'done';
+        activeCount -= 1;
+        await markCompleted(task);
+        return;
+      }
     }
     
     // ✅ 立即标记推文为已处理，避免重复生成（在所有操作之前）
@@ -1959,8 +1966,12 @@
     }
     if (!running) return;
     
-    // ✅ 查找待处理的任务，排除已知任务
-    const next = tasks.find((t) => t.status === 'pending' && !knownTaskIds.has(t.id));
+    // ✅ 查找待处理的任务，排除正在处理的任务
+    const next = tasks.find((t) => 
+      t.status === 'pending' &&
+      // 额外检查：确保任务没有已生成的卡片
+      (!t.article || t.article.querySelectorAll(`.${CARD_CLASS}[data-task-id="${t.id}"]`).length === 0)
+    );
     if (!next) {
       // ✅ 如果没有更多待处理任务，且所有任务都完成了，停止批处理
       if (activeCount === 0) {

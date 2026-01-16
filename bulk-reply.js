@@ -199,7 +199,10 @@
     const alreadyAccepted = task.status === 'accepted';
     task.status = 'accepted';
     task.statusLabel = '已填入';
+    
+    // ✅ 修复：移动到"已填入"列表后，自动滚动
     renderStatus(task);
+    
     if (task.article && task.article.dataset) {
       task.article.dataset.xcommentBatchDone = '1';
     }
@@ -225,6 +228,15 @@
       const textDiv = card.querySelector('.card-text');
       if (textDiv) {
         textDiv.style.opacity = '0.65';
+      }
+    }
+    
+    // ✅ 新增：移除待生成中的该任务卡片，避免视觉混乱
+    const pendingList = document.getElementById(STATUS_LIST_ID);
+    if (pendingList) {
+      const oldRow = pendingList.querySelector(`[data-task-id="${task.id}"]`);
+      if (oldRow) {
+        oldRow.remove();
       }
     }
   }
@@ -760,6 +772,11 @@
     document.getElementById('xcomment-batch-start').addEventListener('click', startBatch);
     document.getElementById('xcomment-batch-stop').addEventListener('click', stopBatch);
     document.getElementById('xcomment-batch-refresh').addEventListener('click', () => {
+      // ✅ 修复：刷新时重置状态，释放开始按钮
+      if (!running) {
+        // 如果当前未运行，确保按钮状态正确
+        setButtonsState({ startDisabled: false, stopDisabled: true });
+      }
       refreshTasks({ reset: false }).then((added) => {
         if (added > 0 && running && !stopRequested) {
           launchNext();
@@ -1386,10 +1403,12 @@
     const done = tasks.filter((t) => t.status === 'done').length;
     const failed = tasks.filter((t) => t.status === 'error').length;
     
-    // 右上角显示状态（始终显示，运行时带动画）
+    // ✅ 优化：右上角显示状态（始终显示，运行时带动画）
+    // 只有在真正运行且有任务进行中时才显示"生成中"
     if (running && runningCount > 0) {
       header.innerHTML = '<span class="generating-status"><img src="' + TOGGLE_ICON_URL + '" style="width:16px;height:16px;"> 生成中...</span>';
     } else {
+      // 其他情况（未运行、运行但无任务进行中）都显示"待命中"
       header.innerHTML = '<span class="idle-status"><img src="' + TOGGLE_ICON_URL + '" style="width:16px;height:16px;opacity:0.6;"> 待命中</span>';
     }
     
@@ -1431,6 +1450,13 @@
       targetList.appendChild(row);
     }
     row.dataset.status = task.status;
+    
+    // ✅ 新增：自动滚动到底部（确保最新内容可见）
+    setTimeout(() => {
+      if (targetList.scrollHeight > targetList.clientHeight) {
+        targetList.scrollTop = targetList.scrollHeight;
+      }
+    }, 100);
     
     // 添加潜力等级class
     row.classList.remove('potential-high', 'potential-medium', 'potential-low');
@@ -1976,10 +2002,11 @@
         <button type="button" data-action="copy" class="ghost">复制</button>
       </div>
     `;
-    const copyBtn = card.querySelector('button[data-action="copy"]');
+      const copyBtn = card.querySelector('button[data-action="copy"]');
     copyBtn.addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(text);
+        // ✅ 修复：复制后标记为已用，从待生成移除
         await markTaskAsUsed(task, card);
       } catch (e) {
         copyBtn.textContent = '复制失败';
@@ -2059,6 +2086,13 @@
     // ✅ 防止重复处理：如果已完成，直接返回
     if (task.status === 'done' && task.retryCount === 0) {
       console.log(`[XBooster] 跳过已完成任务: ${task.id}`);
+      activeCount -= 1;
+      return;
+    }
+    
+    // ✅ 防止重复处理：如果已填入，直接返回
+    if (task.status === 'accepted' && task.retryCount === 0) {
+      console.log(`[XBooster] 跳过已填入任务: ${task.id}`);
       activeCount -= 1;
       return;
     }
@@ -2144,20 +2178,21 @@
       activeCount -= 1;
       launchNext();
     } catch (error) {
+      console.log(`[XBooster] 任务失败:`, error.message || error);
       // 自动重试逻辑：最多重试2次
       if (task.retryCount < 2) {
         task.retryCount += 1;
-        // ✅ 不重置为pending，保持in_progress状态，防止被launchNext重复启动
+        // 🐛 修复：明确设置状态为 in_progress，确保在延迟期间不会被判断为"已完成"
+        task.status = 'in_progress';
         task.statusLabel = `重试中(${task.retryCount}/2)...`;
         renderStatus(task);
         // 延迟1秒后重试
-        activeCount -= 1;
+        activeCount -= 1; // 释放槽位，让其他任务可以运行
         launchNext(); // 继续处理其他任务
         setTimeout(() => {
           if (running && !stopRequested) {
             console.log(`[XBooster] 重试任务 ${task.id}, 第${task.retryCount}次重试`);
-            activeCount += 1;
-            task.status = 'in_progress';
+            activeCount += 1; // 重新占用槽位
             processTask(task);
           }
         }, 1000);
@@ -2192,13 +2227,8 @@
       (!t.article || t.article.querySelectorAll(`.${CARD_CLASS}[data-task-id="${t.id}"]`).length === 0)
     );
     if (!next) {
-      // ✅ 如果没有更多待处理任务，且所有任务都完成了，停止批处理
-      if (activeCount === 0) {
-        const hasMorePending = tasks.some((t) => t.status === 'pending');
-        if (!hasMorePending) {
-          console.log('[XBooster] 所有任务已完成');
-        }
-      }
+      // 🔥 修复：不自动停止，保持运行状态，继续监控新任务
+      // 只有用户手动点击"停止"按钮时才会停止批处理
       return;
     }
     

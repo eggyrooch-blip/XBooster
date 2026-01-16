@@ -102,6 +102,98 @@
       // ignore write errors
     }
   }
+  // 自动点赞推文
+  async function autoLikeTweet(article) {
+    if (!article) return false;
+    
+    try {
+      // 读取自动点赞配置
+      const settings = await chrome.storage.sync.get(['autoLikeAfterReply']);
+      const autoLike = settings.autoLikeAfterReply ?? true; // 默认开启
+      
+      if (!autoLike) {
+        return false; // 未开启自动点赞
+      }
+      
+      // 方法1: 通过data-testid查找点赞按钮
+      let likeBtn = article.querySelector('[data-testid="like"]');
+      
+      // 方法2: 通过SVG path特征查找（备用）
+      if (!likeBtn) {
+        const svgPaths = article.querySelectorAll('svg path');
+        for (const path of svgPaths) {
+          const d = path.getAttribute('d');
+          // 检查是否是点赞按钮的SVG path（根据用户提供的特征）
+          if (d && d.includes('M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16')) {
+            // 找到包含该path的button
+            likeBtn = path.closest('button');
+            if (likeBtn) break;
+          }
+        }
+      }
+      
+      // 方法3: 通过aria-label查找（备用）
+      if (!likeBtn) {
+        const buttons = article.querySelectorAll('button, div[role="button"]');
+        for (const btn of buttons) {
+          const ariaLabel = btn.getAttribute('aria-label');
+          if (ariaLabel) {
+            const lowerLabel = ariaLabel.toLowerCase();
+            if (lowerLabel.includes('like') || 
+                lowerLabel.includes('喜欢') || 
+                lowerLabel.includes('いいね') ||
+                lowerLabel.includes('赞')) {
+              likeBtn = btn;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (!likeBtn) {
+        console.log('[XBooster] 未找到点赞按钮');
+        return false;
+      }
+      
+      // 检查是否已经点赞（避免重复点赞）
+      const ariaLabel = likeBtn.getAttribute('aria-label');
+      if (ariaLabel) {
+        const lowerLabel = ariaLabel.toLowerCase();
+        // 如果按钮显示"unlike"或"已喜欢"，说明已经点赞了
+        if (lowerLabel.includes('unlike') || 
+            lowerLabel.includes('已喜欢') || 
+            lowerLabel.includes('取消喜欢')) {
+          console.log('[XBooster] 该推文已点赞，跳过');
+          return true; // 已经点赞，返回true
+        }
+      }
+      
+      // 检查按钮是否可点击
+      if (likeBtn.disabled || likeBtn.getAttribute('aria-disabled') === 'true') {
+        console.log('[XBooster] 点赞按钮被禁用');
+        return false;
+      }
+      
+      // 点击点赞按钮
+      likeBtn.click();
+      console.log('[XBooster] ✅ 自动点赞成功');
+      
+      // 添加视觉反馈（短暂高亮）
+      likeBtn.style.transition = 'transform 0.2s ease';
+      likeBtn.style.transform = 'scale(1.2)';
+      setTimeout(() => {
+        if (likeBtn.style) {
+          likeBtn.style.transform = 'scale(1)';
+        }
+      }, 300);
+      
+      return true;
+    } catch (error) {
+      console.error('[XBooster] 自动点赞失败:', error);
+      return false;
+    }
+  }
+
   async function markTaskAsUsed(task, card) {
     if (!task) return;
     const alreadyAccepted = task.status === 'accepted';
@@ -117,6 +209,7 @@
     }
     // ✅ 标记任务为已完成，防止重复处理
     await markCompleted(task);
+    
     if (card) {
       card.classList.add('used');
       const fillBtn = card.querySelector('button[data-action="fill"]');
@@ -1117,14 +1210,94 @@
     return true; // 默认认为可以回复
   }
 
+  // 检测用户是否为蓝V认证用户
+  function isVerifiedUser(article) {
+    if (!article) return false;
+    
+    // 方法1: 查找认证标志SVG（通过path的d属性识别）- 最准确的方法
+    // Twitter的蓝V标志有特定的SVG path，这是用户提供的蓝对钩的特征
+    const verifiedBadges = article.querySelectorAll('svg path');
+    for (const path of verifiedBadges) {
+      const d = path.getAttribute('d');
+      // 检查是否包含蓝V标志的特征字符串
+      if (d && (
+        d.includes('M20.396 11c-.018-.646-.215-1.275-.57-1.816') || // 完整特征
+        d.includes('M22.25 12c0-1.43-.') || // 另一种可能的蓝V path
+        d.includes('M20.396 11c') // 开头特征（更兼容）
+      )) {
+        return true;
+      }
+    }
+    
+    // 方法2: 查找认证标志元素（通过aria-label）
+    const userNameSection = article.querySelector('[data-testid="User-Name"]');
+    if (userNameSection) {
+      // 查找带有"Verified"标签的元素（支持多语言）
+      const verifiedLabels = userNameSection.querySelectorAll(
+        '[aria-label*="Verified"], [aria-label*="已认证"], [aria-label*="認證済み"], [aria-label*="verificado"]'
+      );
+      if (verifiedLabels.length > 0) {
+        return true;
+      }
+      
+      // 查找蓝V的SVG图标（通过aria-label）
+      const svgs = userNameSection.querySelectorAll('svg');
+      for (const svg of svgs) {
+        const ariaLabel = svg.getAttribute('aria-label');
+        if (ariaLabel) {
+          const lowerLabel = ariaLabel.toLowerCase();
+          if (lowerLabel.includes('verified') || 
+              lowerLabel.includes('已认证') || 
+              lowerLabel.includes('認證済み') ||
+              lowerLabel.includes('verificado')) {
+            return true;
+          }
+        }
+      }
+    }
+    
+    // 方法3: 查找用户名后的认证徽章（通过特定的class或data属性）
+    const verifiedBadge = article.querySelector('[data-testid="icon-verified"]');
+    if (verifiedBadge) {
+      return true;
+    }
+    
+    // 方法4: 通过用户链接的aria-label检测（备用）
+    const userLinks = article.querySelectorAll('a[href^="/"]');
+    for (const link of userLinks) {
+      const ariaLabel = link.getAttribute('aria-label');
+      if (ariaLabel) {
+        const lowerLabel = ariaLabel.toLowerCase();
+        if (lowerLabel.includes('verified') || lowerLabel.includes('已认证')) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
   async function collectTweets() {
     const articles = Array.from(document.querySelectorAll('article[data-testid="tweet"]'));
     
     const currentUser = document.querySelector('[data-testid="AppTabBar_Profile_Link"]');
     const myHandle = currentUser ? (currentUser.getAttribute('href') || '').split('/')[1] : '';
 
+    // 读取筛选配置
+    const filterSettings = await chrome.storage.sync.get([
+      'filterPotentialHigh',
+      'filterPotentialMedium',
+      'filterPotentialLow',
+      'filterVerifiedOnly'
+    ]);
+    
+    const filterHigh = filterSettings.filterPotentialHigh ?? true;
+    const filterMedium = filterSettings.filterPotentialMedium ?? true;
+    const filterLow = filterSettings.filterPotentialLow ?? true;
+    const verifiedOnly = filterSettings.filterVerifiedOnly ?? false;
+
     const list = [];
-    let skipped = { dialog: 0, marked: 0, noReply: 0, noContent: 0, self: 0, completed: 0 };
+    let skipped = { dialog: 0, marked: 0, noReply: 0, noContent: 0, self: 0, completed: 0, notVerified: 0, potentialFiltered: 0 };
     
     articles.forEach((article, idx) => {
       // 跳过回复弹窗内的 article，避免重复生成
@@ -1159,6 +1332,15 @@
       const tweetUrl = extractTweetUrl(article);
       const dedupKey = tweetId || `${handle || 'unk'}-${content.slice(0, 80)}`;
       
+      // ✅ 检测是否为蓝V用户
+      const isVerified = isVerifiedUser(article);
+      
+      // ✅ 蓝V筛选：如果开启了"仅回复蓝V"，且该用户不是蓝V，跳过
+      if (verifiedOnly && !isVerified) {
+        skipped.notVerified++;
+        return;
+      }
+      
       // ✅ 构建候选任务
       const candidate = {
         id: dedupKey || `${Date.now()}-${idx}`,
@@ -1169,7 +1351,8 @@
         authorHandle: handle,
         postTime: extractPostTime(article),
         replyCount: extractReplyCount(article),
-        likeCount: extractLikeCount(article)
+        likeCount: extractLikeCount(article),
+        isVerified: isVerified
       };
       
       // ✅ 检查是否已经完成过（使用持久化的完成记录）
@@ -1183,7 +1366,7 @@
       list.push(candidate);
     });
     
-    console.log(`[XBooster] 扫描: ${articles.length}条推文, 收集: ${list.length}条, 跳过: 弹窗${skipped.dialog} 已标记${skipped.marked} 已完成${skipped.completed} 无回复${skipped.noReply} 无内容${skipped.noContent} 自己${skipped.self}`);
+    console.log(`[XBooster] 扫描: ${articles.length}条推文, 收集: ${list.length}条, 跳过: 弹窗${skipped.dialog} 已标记${skipped.marked} 已完成${skipped.completed} 无回复${skipped.noReply} 无内容${skipped.noContent} 自己${skipped.self} 非蓝V${skipped.notVerified} 潜力筛选${skipped.potentialFiltered}`);
     return list;
   }
 
@@ -1822,6 +2005,16 @@
           const ok = await setInputText(inputEl, text);
           if (ok) {
             await markTaskAsUsed(task, card);
+            
+            // ✅ 只在最后一条回复填入后才自动点赞
+            // 判断是否是最后一条：当前 index === total
+            if (task.article && index === total) {
+              // 随机延迟3-5秒，模拟真实用户在阅读评论后点赞的行为
+              const randomDelay = 3000 + Math.random() * 2000; // 3000-5000ms之间的随机延迟
+              setTimeout(() => {
+                autoLikeTweet(task.article);
+              }, randomDelay);
+            }
           } else {
             fillBtn.textContent = '填入失败';
             setTimeout(() => {
@@ -1901,6 +2094,32 @@
       const potentialLevel = await getPotentialLevel(potentialScore);
       task.potentialScore = potentialScore;
       task.potentialLevel = potentialLevel;
+      
+      // ✅ 读取潜力筛选配置
+      const filterSettings = await chrome.storage.sync.get([
+        'filterPotentialHigh',
+        'filterPotentialMedium',
+        'filterPotentialLow'
+      ]);
+      
+      const filterHigh = filterSettings.filterPotentialHigh ?? true;
+      const filterMedium = filterSettings.filterPotentialMedium ?? true;
+      const filterLow = filterSettings.filterPotentialLow ?? true;
+      
+      // ✅ 潜力筛选：检查当前任务的潜力等级是否被选中
+      if (
+        (potentialLevel === 'high' && !filterHigh) ||
+        (potentialLevel === 'medium' && !filterMedium) ||
+        (potentialLevel === 'low' && !filterLow)
+      ) {
+        console.log(`[XBooster] 跳过潜力筛选任务: ${task.id}（潜力等级: ${potentialLevel}）`);
+        task.status = 'done';
+        task.statusLabel = '已跳过（潜力筛选）';
+        renderStatus(task);
+        activeCount -= 1;
+        launchNext();
+        return;
+      }
       
       // 根据潜力等级决定回复数量
       const replyCount = potentialLevel === 'high' ? 3 : potentialLevel === 'medium' ? 2 : 1;

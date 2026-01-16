@@ -101,6 +101,54 @@
       </div>
       
       <div class="field-group">
+        <h3>筛选条件</h3>
+        <div class="field">
+          <label>回复潜力筛选</label>
+          <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px;">
+            <label class="toggle" style="flex: 0 0 auto;">
+              <input type="checkbox" id="filter-potential-high" checked>
+              <div>
+                <div>高潜力 ⭐⭐⭐</div>
+              </div>
+            </label>
+            <label class="toggle" style="flex: 0 0 auto;">
+              <input type="checkbox" id="filter-potential-medium" checked>
+              <div>
+                <div>中潜力 ⭐⭐</div>
+              </div>
+            </label>
+            <label class="toggle" style="flex: 0 0 auto;">
+              <input type="checkbox" id="filter-potential-low" checked>
+              <div>
+                <div>低潜力 ⭐</div>
+              </div>
+            </label>
+          </div>
+          <div class="help-text">选择要生成回复的潜力等级,默认全选</div>
+        </div>
+        
+        <div class="field">
+          <label class="toggle">
+            <input type="checkbox" id="filter-verified-only">
+            <div>
+              <div>仅回复蓝V用户</div>
+              <div class="help-text">开启后只为认证用户（蓝V）生成回复,默认关闭</div>
+            </div>
+          </label>
+        </div>
+        
+        <div class="field">
+          <label class="toggle">
+            <input type="checkbox" id="auto-like-after-reply" checked>
+            <div>
+              <div>回复后自动点赞</div>
+              <div class="help-text">填入回复到输入框后自动为该推文点赞,默认开启</div>
+            </div>
+          </label>
+        </div>
+      </div>
+      
+      <div class="field-group">
         <h3>权重设置</h3>
         <div class="field">
           <label for="potential-time-weight">

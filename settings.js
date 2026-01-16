@@ -95,6 +95,11 @@ const DEFAULT_POTENTIAL_TIME_WEIGHT = 0.5;
 const DEFAULT_POTENTIAL_COMPETITION_WEIGHT = 0.5;
 const DEFAULT_POTENTIAL_HIGH_THRESHOLD = 70;
 const DEFAULT_POTENTIAL_MEDIUM_THRESHOLD = 40;
+const FILTER_POTENTIAL_HIGH_KEY = 'filterPotentialHigh';
+const FILTER_POTENTIAL_MEDIUM_KEY = 'filterPotentialMedium';
+const FILTER_POTENTIAL_LOW_KEY = 'filterPotentialLow';
+const FILTER_VERIFIED_ONLY_KEY = 'filterVerifiedOnly';
+const AUTO_LIKE_AFTER_REPLY_KEY = 'autoLikeAfterReply';
 const RESPONSE_VARS = [
   { key: 'author_handle', label: '{{author_handle}}', gate: 'author' },
   { key: 'content', label: '{{content}}' },
@@ -391,6 +396,7 @@ async function loadSettings() {
   const history = await getPromptHistory();
   renderPromptHistory(history);
   await loadPotentialWeights();
+  await loadPotentialFilters();
   syncPotentialWeights();
   
   // 代理站表格输入变化时自动保存（防抖）
@@ -916,6 +922,9 @@ async function saveSettings() {
     // 保存潜力指数权重配置
     await savePotentialWeights();
     
+    // 保存潜力筛选配置
+    await savePotentialFilters();
+    
     showStatus('设置已保存', 'success');
   } catch (error) {
     console.error('保存设置失败:', error);
@@ -1143,6 +1152,36 @@ async function loadPotentialWeights() {
   updatePotentialWeightDisplay();
 }
 
+// 加载潜力筛选配置
+async function loadPotentialFilters() {
+  const settings = await chrome.storage.sync.get([
+    FILTER_POTENTIAL_HIGH_KEY,
+    FILTER_POTENTIAL_MEDIUM_KEY,
+    FILTER_POTENTIAL_LOW_KEY,
+    FILTER_VERIFIED_ONLY_KEY,
+    AUTO_LIKE_AFTER_REPLY_KEY
+  ]);
+  
+  // 默认全选
+  const filterHigh = settings[FILTER_POTENTIAL_HIGH_KEY] ?? true;
+  const filterMedium = settings[FILTER_POTENTIAL_MEDIUM_KEY] ?? true;
+  const filterLow = settings[FILTER_POTENTIAL_LOW_KEY] ?? true;
+  const verifiedOnly = settings[FILTER_VERIFIED_ONLY_KEY] ?? false;
+  const autoLike = settings[AUTO_LIKE_AFTER_REPLY_KEY] ?? true; // 默认开启
+  
+  const filterHighEl = document.getElementById('filter-potential-high');
+  const filterMediumEl = document.getElementById('filter-potential-medium');
+  const filterLowEl = document.getElementById('filter-potential-low');
+  const verifiedOnlyEl = document.getElementById('filter-verified-only');
+  const autoLikeEl = document.getElementById('auto-like-after-reply');
+  
+  if (filterHighEl) filterHighEl.checked = filterHigh;
+  if (filterMediumEl) filterMediumEl.checked = filterMedium;
+  if (filterLowEl) filterLowEl.checked = filterLow;
+  if (verifiedOnlyEl) verifiedOnlyEl.checked = verifiedOnly;
+  if (autoLikeEl) autoLikeEl.checked = autoLike;
+}
+
 // 更新潜力指数权重显示
 function updatePotentialWeightDisplay() {
   const timeWeightEl = document.getElementById('potential-time-weight');
@@ -1227,6 +1266,35 @@ async function savePotentialWeights() {
     });
   } catch (e) {
     console.warn('保存潜力指数权重配置失败:', e);
+  }
+}
+
+// 保存潜力筛选配置
+async function savePotentialFilters() {
+  const filterHighEl = document.getElementById('filter-potential-high');
+  const filterMediumEl = document.getElementById('filter-potential-medium');
+  const filterLowEl = document.getElementById('filter-potential-low');
+  const verifiedOnlyEl = document.getElementById('filter-verified-only');
+  const autoLikeEl = document.getElementById('auto-like-after-reply');
+  
+  if (!filterHighEl || !filterMediumEl || !filterLowEl || !verifiedOnlyEl || !autoLikeEl) return;
+  
+  const filterHigh = filterHighEl.checked;
+  const filterMedium = filterMediumEl.checked;
+  const filterLow = filterLowEl.checked;
+  const verifiedOnly = verifiedOnlyEl.checked;
+  const autoLike = autoLikeEl.checked;
+  
+  try {
+    await chrome.storage.sync.set({
+      [FILTER_POTENTIAL_HIGH_KEY]: filterHigh,
+      [FILTER_POTENTIAL_MEDIUM_KEY]: filterMedium,
+      [FILTER_POTENTIAL_LOW_KEY]: filterLow,
+      [FILTER_VERIFIED_ONLY_KEY]: verifiedOnly,
+      [AUTO_LIKE_AFTER_REPLY_KEY]: autoLike
+    });
+  } catch (e) {
+    console.warn('保存潜力筛选配置失败:', e);
   }
 }
 

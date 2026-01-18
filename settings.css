@@ -91,12 +91,14 @@ body.settings-page::before {
 .settings-card--collapsible summary {
   list-style: none;
   cursor: pointer;
-  padding: 24px;
-  font-weight: 700;
+  padding: 20px 24px;
+  font-weight: 600;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  font-size: 16px;
+  line-height: 1.4;
 }
 
 .settings-card--collapsible summary::-webkit-details-marker {
@@ -108,6 +110,8 @@ body.settings-page::before {
   font-size: 14px;
   color: var(--accent);
   transition: transform 0.2s ease;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .settings-card--collapsible[open] summary::after {
@@ -721,6 +725,22 @@ input[type="range"]::-moz-range-track {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+/* 社区链接卡片样式 */
+.community-link-card {
+  display: block;
+  padding: 14px 16px;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.community-link-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  text-decoration: none;
+  opacity: 0.9;
 }
 
 @media (max-width: 720px) {

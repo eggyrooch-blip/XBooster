@@ -146,7 +146,6 @@ async function getBookmarks() {
     const data = await chrome.storage.sync.get([BOOKMARKS_KEY]);
     return data[BOOKMARKS_KEY] || null;
   } catch (e) {
-    console.warn('获取书签失败:', e);
     return null;
   }
 }
@@ -163,7 +162,6 @@ async function initDefaultBookmarks() {
     }
     return existing;
   } catch (e) {
-    console.warn('初始化默认书签失败:', e);
     return DEFAULT_BOOKMARKS;
   }
 }
@@ -219,7 +217,6 @@ async function handleBookmarkClick(bookmark) {
     // 在新标签页打开
     await chrome.tabs.create({ url: url });
   } catch (error) {
-    console.error('打开书签失败:', error);
     showStatus('打开书签失败', 'error');
   }
 }
@@ -253,7 +250,6 @@ async function loadStats() {
     successEl.textContent = today.success || 0;
     failEl.textContent = today.fail || 0;
   } catch (e) {
-    console.warn('加载统计失败（已忽略）', e);
     totalEl.textContent = cachedStats.total || 0;
     successEl.textContent = cachedStats.success || 0;
     failEl.textContent = cachedStats.fail || 0;
@@ -278,7 +274,7 @@ async function loadEmotions() {
     // 更新当前情绪显示
     updateCurrentEmotionDisplay();
   } catch (error) {
-    console.error('加载情绪配置失败:', error);
+    // 加载情绪失败，使用默认
   }
 }
 
@@ -320,7 +316,7 @@ function adjustTranslationHeight() {
     const available = Math.max(80, Math.min(400, viewportHeight - rect.top - padding));
     content.style.maxHeight = `${available}px`;
   } catch (e) {
-    console.warn('adjustTranslationHeight error:', e);
+    // 高度调整失败，使用默认
   }
 }
 
@@ -408,7 +404,6 @@ async function loadPromptTemplates() {
       select.appendChild(option);
     });
   } catch (error) {
-    console.error('加载提示词模板失败:', error);
     showStatus('加载提示词模板失败', 'error');
   }
 }
@@ -430,7 +425,6 @@ function loadTemplate() {
       }
     })
     .catch(error => {
-      console.error('加载模板失败:', error);
       showStatus('加载风格失败', 'error');
     });
 }
@@ -473,7 +467,6 @@ async function readPostContent(retryCount = 0) {
         await new Promise(resolve => setTimeout(resolve, 1000));
         return readPostContent(retryCount + 1);
       } else {
-        console.error('读取帖子内容失败:', error);
         showStatus('读取失败，请刷新页面后重试', 'error');
         return null;
       }
@@ -558,14 +551,6 @@ async function readPostContent(retryCount = 0) {
             imageSample: (results.media.imageUrls || []).slice(0, 2)
           }
         : null;
-      console.log('[XBooster] readPost summary', {
-        pageType: results.pageType,
-        authorHandle: results.author?.handle || '',
-        contentLength: results.content.length,
-        contentPreview: results.content.slice(0, 120),
-        media: mediaSummary,
-        debug: results.debug
-      });
       return results.content;
     } else {
       // 如果内容为空，尝试等待页面加载
@@ -581,13 +566,10 @@ async function readPostContent(retryCount = 0) {
         errorMsg += '• 刷新页面后重试';
         
         showStatus(errorMsg, 'error');
-        console.log('读取失败，调试信息:', results.debug);
-        console.log('当前 URL:', tab.url);
         return null;
       }
     }
   } catch (error) {
-    console.error('读取帖子内容失败:', error);
     
     if (retryCount < maxRetries) {
       showStatus(`重试中... (${retryCount + 1}/${maxRetries})`, 'info');
@@ -620,8 +602,6 @@ async function autoTranslatePostContent(postContent, targetLanguage, options = {
       throw error;
     });
     
-    console.log('翻译响应:', response);
-    
     // 检查翻译是否成功
     if (response && response.translation && response.translation.trim().length > 0) {
       document.getElementById('post-translation-content').textContent = response.translation;
@@ -635,14 +615,12 @@ async function autoTranslatePostContent(postContent, targetLanguage, options = {
       return true;
     } else if (response && response.error) {
       // 翻译失败，有错误信息
-      console.error('翻译失败:', response.error);
       if (!silentStatus) {
         showStatus('帖子内容已自动读取（翻译失败）', 'info');
       }
       return false;
     } else {
       // 响应格式异常
-      console.warn('翻译响应格式异常:', response);
       // 检查页面上是否已经有翻译内容（可能是之前成功但状态未更新）
       const translationElement = document.getElementById('post-translation-content');
       if (translationElement && translationElement.textContent.trim().length > 0) {
@@ -659,7 +637,6 @@ async function autoTranslatePostContent(postContent, targetLanguage, options = {
       }
     }
   } catch (error) {
-    console.error('自动翻译失败:', error);
     // 检查页面上是否已经有翻译内容
     const translationElement = document.getElementById('post-translation-content');
     if (translationElement && translationElement.textContent.trim().length > 0) {
@@ -775,7 +752,6 @@ async function generateComment() {
         const storage = await chrome.storage.sync.get(['currentEmotion']);
         currentEmotion = storage.currentEmotion || emotions[0] || null;
       } catch (error) {
-        console.warn('获取情绪失败（已忽略）:', error);
       }
     }
 
@@ -789,7 +765,6 @@ async function generateComment() {
     // 步骤1: 翻译帖子内容（不阻塞评论生成）
     if (enableTranslation && !isTargetLanguage) {
       autoTranslatePostContent(postContent, targetLanguage, { silentStatus: true }).catch((error) => {
-        console.error('翻译帖子失败:', error);
       });
     } else if (enableTranslation && isTargetLanguage) {
       // 如果帖子本身就是目标语言，直接显示
@@ -872,23 +847,6 @@ async function generateComment() {
           imageSample: (currentPostMedia.imageUrls || []).slice(0, 2)
         }
       : null;
-    console.log('[XBooster] prompt debug', {
-      includeAuthorHandleInPrompt,
-      includeToneInPrompt,
-      templateHasVar,
-      authorHandleValue,
-      toneValue,
-      toneLabel: toneLabelForPrompt,
-      tonePrompt,
-      locale,
-      contentLength: postContent.length,
-      media: mediaSummary,
-      includeMediaInPrompt: false
-    });
-    console.log('[XBooster] fullPrompt preview', {
-      length: fullPrompt.length,
-      preview: fullPrompt.slice(0, 220)
-    });
 
     // 调用后台脚本生成评论
     const requestStart = Date.now();
@@ -902,13 +860,6 @@ async function generateComment() {
         return null;
       }
       throw error;
-    });
-
-    console.log('[XBooster] LLM response meta', {
-      elapsedMs: Date.now() - requestStart,
-      hasComment: !!(response && response.comment),
-      length: response && response.comment ? response.comment.length : 0,
-      error: response?.error || null
     });
     
     if (response && response.comment) {
@@ -938,7 +889,6 @@ async function generateComment() {
               showStatus('评论已生成，翻译完成', 'success');
             })
             .catch((error) => {
-              console.error('评论翻译失败:', error);
               showStatus('评论已生成（翻译失败）', 'info');
             });
         } else {
@@ -955,7 +905,6 @@ async function generateComment() {
       showStatus('生成评论失败: ' + (response?.error || '未知错误'), 'error');
     }
   } catch (error) {
-    console.error('生成评论失败:', error);
     showStatus('生成评论失败: ' + error.message, 'error');
   }
 }
@@ -981,7 +930,6 @@ async function generateCommentTranslation(commentText, targetLang = 'zh-CN', opt
       throw new Error(response?.error || '未知错误');
     }
   } catch (error) {
-    console.error('评论翻译失败:', error);
     if (!silentStatus) {
       showStatus('评论翻译失败: ' + error.message, 'error');
     }
@@ -1022,7 +970,6 @@ async function copyToClipboard(text, type) {
     await navigator.clipboard.writeText(text);
     showStatus(`${type}已复制到剪贴板`, 'success');
   } catch (error) {
-    console.error('复制失败:', error);
     showStatus('复制失败', 'error');
   }
 }
@@ -1083,7 +1030,6 @@ async function ensureContentScript(tabId) {
     } catch (error) {
       // content script 不存在，尝试注入
       if (error.message && error.message.includes('Could not establish connection')) {
-        console.log('Content script 未注入，正在注入...');
         await chrome.scripting.executeScript({
           target: { tabId: tabId },
           files: ['content.js']
@@ -1095,7 +1041,6 @@ async function ensureContentScript(tabId) {
       throw error;
     }
   } catch (error) {
-    console.error('确保 content script 失败:', error);
     return false;
   }
 }
@@ -1205,12 +1150,10 @@ async function checkCurrentPage() {
       }
     } catch (error) {
       // 静默处理错误，不显示给用户
-      console.log('检查页面失败（已静默处理）:', error.message);
       showStatus('当前不是帖子详情页', 'info');
     }
   } catch (error) {
     // 完全静默处理所有错误
-    console.log('checkCurrentPage 错误（已静默处理）:', error.message);
     showStatus('无法检查页面，请刷新后重试', 'error');
   }
 }
@@ -1239,12 +1182,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
           await chrome.storage.sync.set({ defaultPromptTemplate: DEFAULT_PROMPT_TEMPLATE });
         } catch (e2) {
-          console.log('写入默认提示词模板失败（已忽略）:', e2);
+          // 写入失败，静默处理
         }
       }
     }
   } catch (e) {
-    console.log('加载默认提示词模板失败（已忽略）:', e);
+    // 加载失败，静默处理
   }
   
   // 自动检查当前页面并读取帖子

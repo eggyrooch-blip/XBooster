@@ -448,8 +448,6 @@ function readPost() {
   // ✅ 根据页面类型分发到不同的读取函数
   const pageContext = detectPageContext();
   
-  console.log('[XBooster] 检测到页面类型:', pageContext.type, pageContext.label);
-  
   switch (pageContext.type) {
     case 'post_detail':
       return readPostDetail();
@@ -477,7 +475,6 @@ function readPost_OLD() {
   const article = findMainArticle();
   
   if (!article) {
-    console.warn('XBooster 插件: 未找到主帖子 article');
     return {
       content: '',
       author: extractAuthor(null),
@@ -488,8 +485,6 @@ function readPost_OLD() {
       hasContent: false
     };
   }
-  
-  console.log('XBooster 插件: 找到主帖子 article', article);
   
   // 方法1: 尝试获取推文文本（最可靠的方法，只从主帖子中查找）
   const tweetText = article.querySelector('[data-testid="tweetText"]');
@@ -642,7 +637,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const result = readPost();
       sendResponse(result);
     } catch (error) {
-      console.error('读取帖子失败:', error);
       sendResponse({ error: error.message, content: '', author: { displayName: '未知' } });
     }
     return true;
@@ -660,7 +654,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         hasContent: postInfo ? postInfo.hasContent : false
       });
     } catch (error) {
-      console.error('检查页面失败:', error);
       sendResponse({
         isPostPage: false,
         pageContext: { type: 'error', label: '检测失败', canRead: false, icon: '❌' }
@@ -705,8 +698,6 @@ function waitForElement(selector, timeout = 5000) {
 
 // 页面加载完成后检测并通知
 function initPageCheck() {
-  console.log('XBooster 插件: 初始化页面检测');
-  
   // 如果是帖子详情页，等待内容加载
   if (isPostDetailPage()) {
     // 等待推文内容加载
@@ -732,10 +723,6 @@ function initPageCheck() {
     const url = location.href;
     if (url !== lastUrl) {
       lastUrl = url;
-      // 只在检测到帖子详情页时输出日志
-      if (isPostDetailPage()) {
-        console.log('XBooster 插件: 检测到帖子详情页', url);
-      }
       // 延迟一下，等待页面内容加载
       setTimeout(() => {
         if (isPostDetailPage()) {
@@ -775,8 +762,6 @@ function initPageCheck() {
 
 // 页面加载完成后，可以添加一些辅助功能
 function init() {
-  console.log('XBooster 插件已加载，当前 URL:', window.location.href);
-  
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       setTimeout(initPageCheck, 500);

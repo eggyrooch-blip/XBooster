@@ -25,16 +25,13 @@
     try {
       const response = await fetch(chrome.runtime.getURL('emotions.json'));
       EMOTIONS = await response.json();
-      console.log('[XBooster] 情绪配置加载成功:', EMOTIONS.length, '种');
       
       // 读取当前选择的情绪
       const storage = await chrome.storage.sync.get(['currentEmotion']);
       currentEmotion = storage.currentEmotion || EMOTIONS[0]; // 默认第一个
-      console.log('[XBooster] 当前情绪:', currentEmotion.emoji, currentEmotion.name);
       
       return true;
     } catch (error) {
-      console.error('[XBooster] 加载情绪配置失败:', error);
       // 回退到默认情绪
       EMOTIONS = [
         { id: 'friendly', name: '友好', emoji: '😊', tone: 'friendly', description: '温暖、支持、积极' }
@@ -59,7 +56,6 @@
     buttonEl.style.backgroundSize = '22px 22px';
     buttonEl.setAttribute('aria-label', `AI 生成推文/回复 (${emotion.name})`);
     buttonEl.title = `当前情绪: ${emotion.name}`;
-    console.log('[XBooster] 按钮已更新为静态 Logo, 情绪:', emotion.name);
   }
 
   function applyButtonLabel(buttonEl) {
@@ -103,7 +99,6 @@
       const newEmotion = changes.currentEmotion.newValue;
       if (newEmotion) {
         currentEmotion = newEmotion;
-        console.log('[XBooster] 情绪已更新:', newEmotion.emoji, newEmotion.name);
         
         // 更新页面上所有的按钮
         document.querySelectorAll(`.${BUTTON_CLASS}`).forEach(btn => {
@@ -287,11 +282,8 @@
    */
   function setInputText(inputEl, text) {
     if (!inputEl) {
-      console.warn('[XBooster] setInputText: inputEl is null');
       return;
     }
-
-    console.log('[XBooster] 开始写入文本，长度:', text.length, '预览:', text.substring(0, 50));
 
     // 主方案: 使用 paste 事件 (来自 tweetGPT 源码)
     // 优点: 自动处理 HTML 转义，完整触发 DraftJS 状态更新，可正常提交
@@ -310,11 +302,10 @@
       dataTransfer.clearData();
       
       if (dispatched) {
-        console.log('[XBooster] ✅ 使用 paste 方法写入成功');
         return;
       }
     } catch (error) {
-      console.warn('[XBooster] ⚠️ paste 方法失败，使用备用方案:', error);
+      // paste 方法失败，使用备用方案
     }
 
     // 备用方案: 改进的 innerHTML 方法
@@ -326,10 +317,6 @@
       // 触发多个事件确保 React/DraftJS 状态更新
       textWrapper.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
       textWrapper.dispatchEvent(new Event('change', { bubbles: true }));
-      
-      console.log('[XBooster] ✅ 使用 innerHTML 备用方案写入成功');
-    } else {
-      console.error('[XBooster] ❌ 无法找到文本容器，写入失败');
     }
   }
 
@@ -512,11 +499,8 @@
       try {
         const storage = await chrome.storage.sync.get(['currentEmotion']);
         currentEmotion = storage.currentEmotion;
-        if (currentEmotion) {
-          console.log('[XBooster] 当前情绪:', currentEmotion.emoji, currentEmotion.name, currentEmotion.tone);
-        }
       } catch (error) {
-        console.warn('[XBooster] 读取情绪失败:', error);
+        // 读取情绪失败，使用默认
       }
 
       const replyTo = findReplyText(toolbarEl);
@@ -544,7 +528,6 @@
 
       setInputText(inputEl, text);
     } catch (error) {
-      console.error('X comment tweet generation failed:', error);
       // 如果错误信息包含 API Key/URL，显示友好提示
       if (error.message && error.message.includes('扩展已更新')) {
         alert(CONTEXT_INVALIDATED_HINT);
@@ -566,13 +549,11 @@
 
   function addButtonToToolbar(toolbarEl) {
     if (!toolbarEl) {
-      console.log('addButtonToToolbar: toolbarEl 为空');
       return;
     }
     
     // 检查是否已经添加了按钮
     if (toolbarEl.querySelector(`.${BUTTON_CLASS}`)) {
-      console.log('addButtonToToolbar: 按钮已存在');
       return;
     }
 
@@ -584,12 +565,9 @@
         'div[data-testid^="tweetTextarea_"][contenteditable="true"], div[role="textbox"][contenteditable="true"]'
       );
       if (!foundInput) {
-        console.log('addButtonToToolbar: 未找到输入框，跳过');
         return;
       }
     }
-
-    console.log('addButtonToToolbar: 开始添加按钮', toolbarEl);
 
     const buttonEl = document.createElement('button');
     buttonEl.type = 'button';
@@ -599,12 +577,7 @@
     buttonEl.addEventListener('click', async (event) => {
       event.preventDefault();
       event.stopPropagation();
-      console.log('按钮被点击, 当前情绪:', currentEmotion?.name);
-      try {
-        await handleGenerate(toolbarEl, buttonEl, currentEmotion ? currentEmotion.tone : 'friendly');
-      } catch (error) {
-        console.error('按钮生成失败:', error);
-      }
+      await handleGenerate(toolbarEl, buttonEl, currentEmotion ? currentEmotion.tone : 'friendly');
     });
 
     // 标记已修正，避免被重复处理
@@ -615,27 +588,22 @@
     const container = toolbarEl.firstElementChild || toolbarEl;
     if (container && container.nodeType === Node.ELEMENT_NODE) {
       container.appendChild(buttonEl);
-      console.log('按钮已添加到第一个子元素', container);
       return;
     }
     
     // 方法2: 直接添加到工具栏
     toolbarEl.appendChild(buttonEl);
-    console.log('按钮已直接添加到工具栏', toolbarEl);
   }
   
   // 为输入框添加按钮（通过输入框反向查找工具栏）
   function addButtonToInput(inputEl) {
     if (!inputEl) {
-      console.log('addButtonToInput: inputEl 为空');
       return;
     }
 
     if (!isEditableInput(inputEl)) {
       return;
     }
-    
-    console.log('addButtonToInput: 开始处理输入框', inputEl);
     
     // 检查是否已经添加了按钮（在输入框附近）
     const scopeEl =
@@ -645,17 +613,14 @@
       inputEl.parentElement;
     const existingButton = scopeEl ? scopeEl.querySelector(`.${BUTTON_CLASS}`) : null;
     if (existingButton) {
-      console.log('addButtonToInput: 按钮已存在');
       return;
     }
     
     // 查找工具栏
     const toolbarEl = findToolbarFromInput(inputEl);
     if (toolbarEl) {
-      console.log('addButtonToInput: 找到工具栏', toolbarEl);
       addButtonToToolbar(toolbarEl);
     } else {
-      console.log('addButtonToInput: 未找到工具栏，尝试在父容器中添加');
       // 如果找不到工具栏，尝试在输入框的父容器中添加
       let container = inputEl.parentElement;
       let depth = 0;
@@ -665,7 +630,6 @@
         if (hasButtons) {
           // 检查是否已有 GPT 按钮
           if (!container.querySelector(`.${BUTTON_CLASS}`)) {
-            console.log('addButtonToInput: 在父容器中添加按钮', container);
             const buttonEl = document.createElement('button');
             buttonEl.type = 'button';
             buttonEl.className = BUTTON_CLASS;
@@ -673,12 +637,7 @@
             buttonEl.addEventListener('click', async (event) => {
               event.preventDefault();
               event.stopPropagation();
-              console.log('按钮被点击（从输入框添加）, 当前情绪:', currentEmotion?.name);
-              try {
-                await handleGenerate(container, buttonEl, currentEmotion ? currentEmotion.tone : 'friendly');
-              } catch (error) {
-                console.error('按钮生成失败:', error);
-              }
+              await handleGenerate(container, buttonEl, currentEmotion ? currentEmotion.tone : 'friendly');
             });
             buttonEl.dataset.xcommentPatched = '1';
             container.appendChild(buttonEl);
@@ -695,10 +654,8 @@
         fallbackRow.className = FALLBACK_ROW_CLASS;
         parent.insertBefore(fallbackRow, anchor.nextSibling);
         addButtonToToolbar(fallbackRow);
-        console.log('addButtonToInput: 使用降级容器添加按钮', fallbackRow);
         return;
       }
-      console.log('addButtonToInput: 未找到合适的容器添加按钮');
     }
   }
 
@@ -734,7 +691,6 @@
   }
 
   function init() {
-    console.log('x-inline.js 初始化开始');
     ensureStyles();
 
     // 清理旧按钮（可能来自旧版本的残留）
@@ -745,7 +701,6 @@
     // 方法1: 查找所有已知的工具栏选择器
     for (const selector of TOOLBAR_SELECTORS) {
       const toolbars = document.querySelectorAll(selector);
-      console.log(`找到 ${toolbars.length} 个工具栏（通过选择器 ${selector}）`);
       toolbars.forEach((toolbar) => {
         addButtonToToolbar(toolbar);
       });
@@ -753,7 +708,6 @@
     
     // 方法2: 查找所有输入框并尝试添加按钮
     const allInputs = findAllInputs();
-    console.log(`总共找到 ${allInputs.length} 个输入框`);
     allInputs.forEach(input => {
       addButtonToInput(input);
     });
@@ -761,7 +715,6 @@
     const root = document.querySelector('#react-root') || document.body;
     const observer = new MutationObserver(handleMutations);
     observer.observe(root, { childList: true, subtree: true });
-    console.log('MutationObserver 已启动');
     
     // 定期检查输入框（处理动态加载的情况）
     setInterval(() => {
@@ -769,13 +722,10 @@
       inputs.forEach(input => {
         const hasButton = input.closest('div')?.querySelector(`.${BUTTON_CLASS}`);
         if (!hasButton) {
-          console.log('定期检查：发现新输入框，添加按钮');
           addButtonToInput(input);
         }
       });
     }, 2000);
-    
-    console.log('x-inline.js 初始化完成');
   }
 
   // ✅ 初始化：先加载情绪配置,再启动主程序

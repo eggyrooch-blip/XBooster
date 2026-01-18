@@ -271,7 +271,6 @@ async function migrateApiPoolToProxyList(settings) {
     try {
       pool = JSON.parse(poolText);
     } catch (e) {
-      console.warn('解析旧通道列表失败: ', e);
       return;
     }
     if (!Array.isArray(pool) || pool.length === 0) return;
@@ -292,7 +291,7 @@ async function migrateApiPoolToProxyList(settings) {
     await saveProxyList(proxyList);
     chrome.storage.sync.remove([API_POOL_KEY, API_POOL_ENABLED_KEY]).catch(() => {});
   } catch (e) {
-    console.warn('迁移通道列表到代理站失败: ', e);
+    // 迁移失败，静默处理
   }
 }
 
@@ -407,7 +406,7 @@ async function loadSettings() {
       if (e.target.matches('.proxy-name-input, .proxy-url-input, .proxy-model-input, .proxy-key-input, .proxy-enabled-checkbox')) {
         clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
-          saveProxyListFromTable().catch(console.error);
+          saveProxyListFromTable().catch(() => {});
         }, 1000);
       }
     });
@@ -421,7 +420,7 @@ async function loadSettings() {
       if (e.target.matches('.bookmark-icon-input, .bookmark-name-input, .bookmark-url-input, .bookmark-date-checkbox')) {
         clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
-          saveBookmarkListFromTable().catch(console.error);
+          saveBookmarkListFromTable().catch(() => {});
         }, 1000);
       }
     });
@@ -927,7 +926,6 @@ async function saveSettings() {
     
     showStatus('设置已保存', 'success');
   } catch (error) {
-    console.error('保存设置失败:', error);
     showStatus('保存设置失败', 'error');
   }
 }
@@ -1027,7 +1025,6 @@ function showStatus(message, type) {
           resultEl.value = '生成失败: ' + (response && response.error ? response.error : '未知错误');
         }
       } catch (e) {
-        console.error('写作预览失败:', e);
         resultEl.value = '调用失败: ' + (e && e.message ? e.message : String(e));
       }
     });
@@ -1090,7 +1087,6 @@ function showStatus(message, type) {
           resultEl.value = '生成失败: ' + (response && response.error ? response.error : '未知错误');
         }
       } catch (e) {
-        console.error('回复/评论预览失败:', e);
         resultEl.value = '调用失败: ' + (e && e.message ? e.message : String(e));
       }
     });
@@ -1265,7 +1261,7 @@ async function savePotentialWeights() {
       [POTENTIAL_MEDIUM_THRESHOLD_KEY]: mediumThreshold
     });
   } catch (e) {
-    console.warn('保存潜力指数权重配置失败:', e);
+    // 保存失败，静默处理
   }
 }
 
@@ -1294,7 +1290,7 @@ async function savePotentialFilters() {
       [AUTO_LIKE_AFTER_REPLY_KEY]: autoLike
     });
   } catch (e) {
-    console.warn('保存潜力筛选配置失败:', e);
+    // 保存失败，静默处理
   }
 }
 

@@ -151,7 +151,6 @@
       }
       
       if (!likeBtn) {
-        console.log('[XBooster] 未找到点赞按钮');
         return false;
       }
       
@@ -163,20 +162,17 @@
         if (lowerLabel.includes('unlike') || 
             lowerLabel.includes('已喜欢') || 
             lowerLabel.includes('取消喜欢')) {
-          console.log('[XBooster] 该推文已点赞，跳过');
           return true; // 已经点赞，返回true
         }
       }
       
       // 检查按钮是否可点击
       if (likeBtn.disabled || likeBtn.getAttribute('aria-disabled') === 'true') {
-        console.log('[XBooster] 点赞按钮被禁用');
         return false;
       }
       
       // 点击点赞按钮
       likeBtn.click();
-      console.log('[XBooster] ✅ 自动点赞成功');
       
       // 添加视觉反馈（短暂高亮）
       likeBtn.style.transition = 'transform 0.2s ease';
@@ -189,7 +185,6 @@
       
       return true;
     } catch (error) {
-      console.error('[XBooster] 自动点赞失败:', error);
       return false;
     }
   }
@@ -269,7 +264,6 @@
       stats[key] = updated;
       await chrome.storage.local.set({ [STATS_KEY]: stats });
     } catch (e) {
-      console.warn('recordStat failed', e);
     }
   }
 
@@ -1383,7 +1377,6 @@
       list.push(candidate);
     });
     
-    console.log(`[XBooster] 扫描: ${articles.length}条推文, 收集: ${list.length}条, 跳过: 弹窗${skipped.dialog} 已标记${skipped.marked} 已完成${skipped.completed} 无回复${skipped.noReply} 无内容${skipped.noContent} 自己${skipped.self} 非蓝V${skipped.notVerified} 潜力筛选${skipped.potentialFiltered}`);
     return list;
   }
 
@@ -1974,7 +1967,6 @@
         `.${CARD_CLASS}[data-task-id="${task.id}"][data-reply-index="${index}-${total}"]`
       );
       if (existingIndexCard) {
-        console.log(`[XBooster] 跳过重复添加卡片: 任务 ${task.id} 的第 ${index}/${total} 条已存在`);
         return;
       }
     }
@@ -2085,14 +2077,12 @@
     
     // ✅ 防止重复处理：如果已完成，直接返回
     if (task.status === 'done' && task.retryCount === 0) {
-      console.log(`[XBooster] 跳过已完成任务: ${task.id}`);
       activeCount -= 1;
       return;
     }
     
     // ✅ 防止重复处理：如果已填入，直接返回
     if (task.status === 'accepted' && task.retryCount === 0) {
-      console.log(`[XBooster] 跳过已填入任务: ${task.id}`);
       activeCount -= 1;
       return;
     }
@@ -2101,7 +2091,6 @@
     if (task.article && task.retryCount === 0) {
       const existingCards = task.article.querySelectorAll(`.${CARD_CLASS}[data-task-id="${task.id}"]`);
       if (existingCards.length > 0) {
-        console.log(`[XBooster] 跳过已有卡片的任务: ${task.id}（已有${existingCards.length}个卡片）`);
         task.status = 'done';
         activeCount -= 1;
         await markCompleted(task);
@@ -2146,7 +2135,6 @@
         (potentialLevel === 'medium' && !filterMedium) ||
         (potentialLevel === 'low' && !filterLow)
       ) {
-        console.log(`[XBooster] 跳过潜力筛选任务: ${task.id}（潜力等级: ${potentialLevel}）`);
         task.status = 'done';
         task.statusLabel = '已跳过（潜力筛选）';
         renderStatus(task);
@@ -2178,7 +2166,6 @@
       activeCount -= 1;
       launchNext();
     } catch (error) {
-      console.log(`[XBooster] 任务失败:`, error.message || error);
       // 自动重试逻辑：最多重试2次
       if (task.retryCount < 2) {
         task.retryCount += 1;
@@ -2191,7 +2178,6 @@
         launchNext(); // 继续处理其他任务
         setTimeout(() => {
           if (running && !stopRequested) {
-            console.log(`[XBooster] 重试任务 ${task.id}, 第${task.retryCount}次重试`);
             activeCount += 1; // 重新占用槽位
             processTask(task);
           }
@@ -2293,9 +2279,8 @@
         syncPanelPosition();
       }
       
-      console.log('[XBooster Batch] ✅ 批量回复面板初始化完成');
     } catch (error) {
-      console.error('[XBooster Batch] ❌ 初始化失败:', error);
+      // 初始化失败，静默处理
     }
     
     // 监听情绪变化，实时更新选择器

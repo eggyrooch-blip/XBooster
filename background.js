@@ -1,6 +1,33 @@
 // 后台服务脚本
 // 处理评论生成和翻译请求
 
+// ✅ 统一日志系统 - 只输出 warning 和 error
+const LOG_LEVELS = { ERROR: 0, WARN: 1, INFO: 2, DEBUG: 3 };
+const CURRENT_LOG_LEVEL = LOG_LEVELS.WARN; // 只显示警告和错误
+
+const logger = {
+  error: (...args) => {
+    if (CURRENT_LOG_LEVEL >= LOG_LEVELS.ERROR) {
+      console.error('[XBooster Error]', ...args);
+    }
+  },
+  warn: (...args) => {
+    if (CURRENT_LOG_LEVEL >= LOG_LEVELS.WARN) {
+      console.warn('[XBooster Warning]', ...args);
+    }
+  },
+  info: (...args) => {
+    if (CURRENT_LOG_LEVEL >= LOG_LEVELS.INFO) {
+      console.log('[XBooster]', ...args);
+    }
+  },
+  debug: (...args) => {
+    if (CURRENT_LOG_LEVEL >= LOG_LEVELS.DEBUG) {
+      console.log('[XBooster Debug]', ...args);
+    }
+  }
+};
+
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const DEFAULT_MODEL = 'gpt-3.5-turbo';
 const REQUEST_TIMEOUT_MS = 45000;
@@ -336,15 +363,18 @@ async function generateTweetWithAI(props) {
   // 如果是回复场景，且配置了自定义模板，则优先使用统一模板
   if (replyTo) {
     try {
+      // ✅ 从 local storage 读取模板（避免 sync 8KB 限制）
+      const [templates, config] = await Promise.all([
+        chrome.storage.local.get(['defaultPromptTemplate']),
+        chrome.storage.sync.get(['includeAuthorHandleInPrompt', 'includeToneInPrompt'])
+      ]);
       const {
-        defaultPromptTemplate,
+        defaultPromptTemplate
+      } = templates;
+      const {
         includeAuthorHandleInPrompt,
         includeToneInPrompt
-      } = await chrome.storage.sync.get([
-        'defaultPromptTemplate',
-        'includeAuthorHandleInPrompt',
-        'includeToneInPrompt'
-      ]);
+      } = config;
       if (defaultPromptTemplate && defaultPromptTemplate.trim()) {
         const template = sanitizeText(defaultPromptTemplate);
         const templateHasVar = templateHasVars(template, [
@@ -374,7 +404,22 @@ async function generateTweetWithAI(props) {
         const toneLabel = includeToneInPrompt !== false ? type : '';
         const langInstruction = `Use locale "${locale}"`;
 
+        // 获取人设配置
+        const personaSettings = await chrome.storage.sync.get(['personaPreset', 'customPersona']);
+        const PERSONA_PRESETS = {
+          designer: '23岁自由设计师，审美敏锐，表达直接，偶尔毒舌，喜欢收集好图和吐槽烂设计',
+          student: '高中生，中二热血，爱用网络梗和颜文字，对感兴趣的话题超有热情',
+          otaku: '二次元宅，追番狂人，懂各种梗和黑话，对喜欢的作品共情能力超强',
+          foodie: '美食博主，热爱分享生活，说话亲切，对好吃的东西毫无抵抗力',
+          tech: '程序员，理性简洁，偶尔技术吐槽，对效率和逻辑有执念'
+        };
+        const personaPreset = personaSettings.personaPreset || 'designer';
+        const persona = personaPreset === 'custom' 
+          ? (personaSettings.customPersona || PERSONA_PRESETS.designer)
+          : (PERSONA_PRESETS[personaPreset] || PERSONA_PRESETS.designer);
+
         const body = replaceTemplateVars(template, {
+          persona: persona,
           author_handle: authorHandleValue,
           content: replyContent,
           reply_content: replyContent,
@@ -383,7 +428,10 @@ async function generateTweetWithAI(props) {
           lang_instruction: langInstruction,
           tone: toneValue,
           tone_label: toneLabel,
-          locale: locale
+          locale: locale,
+          potential_level: 'TRY',  // 默认值，实际由 bulk-reply.js 传入
+          reply_count: '1',        // 默认值
+          post_type: 'text'        // 默认值
         });
 
         userMessage = sanitizeText(templateHasVar ? body : template);
@@ -394,7 +442,8 @@ async function generateTweetWithAI(props) {
   } else {
     // 新推文场景：允许使用写作模板
     try {
-      const { composePromptTemplate } = await chrome.storage.sync.get(['composePromptTemplate']);
+      // ✅ 从 local storage 读取模板（避免 sync 8KB 限制）
+      const { composePromptTemplate } = await chrome.storage.local.get(['composePromptTemplate']);
       if (composePromptTemplate && composePromptTemplate.trim()) {
         const template = sanitizeText(composePromptTemplate);
         const templateHasVar = templateHasVars(template, ['topic', 'tone', 'locale']);
@@ -900,6 +949,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ success: true });
     return true;
   }
+  
+  if (request.action === 'openSettings') {
+    chrome.runtime.openOptionsPage();
+    sendResponse({ success: true });
+    return true;
+  }
 });
 
 // 监听标签页更新（URL 变化）
@@ -934,117 +989,134 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 })();
 
 // 插件安装时的初始化
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(async () => {
   // 设置默认配置
-  chrome.storage.sync
-    .get(['aiProvider', 'openaiModel', 'targetLanguage', 'defaultPromptTemplate', 'composePromptTemplate'])
-    .then((current) => {
-      const updates = {};
-      if (current.aiProvider === undefined) {
-        updates.aiProvider = 'openai';
-      }
-      if (current.openaiModel === undefined) {
-        updates.openaiModel = 'gpt-3.5-turbo';
-      }
-      if (current.targetLanguage === undefined) {
-        updates.targetLanguage = 'zh-CN';
-      }
-      if (current.defaultPromptTemplate === undefined) {
-        updates.defaultPromptTemplate =
-          `你是一个真实的X平台普通用户，喜欢自然参与感兴趣的话题讨论，特别是日语圈的高热度娱乐、漫画、AI生成图像、偶像、短视频和视觉媒体内容（精美插画、动漫风美少女、幻想场景、可爱动物/家庭、偶像照片、产品展示等）。你的回复风格是：说话有条理、有逻辑，偶尔自然使用一些接地气的俚语和生活化表达（如"确实""说实话""我之前也""这点太对了""有点儿意思""真实""太有共鸣了"等），但绝不过度堆砌，也不强制每句都加，整体语气轻松亲切、容易让人认同，像日常和朋友聊天一样，完全没有批量、推广或AI痕迹。
+  try {
+    // ✅ 分离读取：sync 用于小配置，local 用于大型模板
+    const [syncSettings, localTemplates] = await Promise.all([
+      chrome.storage.sync.get([
+        'aiProvider', 
+        'openaiModel', 
+        'targetLanguage', 
+        'currentEmotion',
+        // 读取旧版本可能存储在 sync 中的模板（用于迁移）
+        'defaultPromptTemplate',
+        'composePromptTemplate'
+      ]),
+      chrome.storage.local.get(['defaultPromptTemplate', 'composePromptTemplate'])
+    ]);
+    
+    // ✅ 数据迁移：如果 sync 中有模板但 local 中没有，则迁移到 local
+    const migrationNeeded = {};
+    if (syncSettings.defaultPromptTemplate && !localTemplates.defaultPromptTemplate) {
+      migrationNeeded.defaultPromptTemplate = syncSettings.defaultPromptTemplate;
+      logger.info('迁移 defaultPromptTemplate 从 sync 到 local');
+    }
+    if (syncSettings.composePromptTemplate && !localTemplates.composePromptTemplate) {
+      migrationNeeded.composePromptTemplate = syncSettings.composePromptTemplate;
+      logger.info('迁移 composePromptTemplate 从 sync 到 local');
+    }
+    if (Object.keys(migrationNeeded).length > 0) {
+      await chrome.storage.local.set(migrationNeeded);
+      // 可选：从 sync 中删除已迁移的模板以释放空间
+      // await chrome.storage.sync.remove(['defaultPromptTemplate', 'composePromptTemplate']);
+    }
+    
+    const syncUpdates = {};
+    const localUpdates = {};
+    
+    if (syncSettings.aiProvider === undefined) {
+      syncUpdates.aiProvider = 'openai';
+    }
+    if (syncSettings.openaiModel === undefined) {
+      syncUpdates.openaiModel = 'gpt-3.5-turbo';
+    }
+    if (syncSettings.targetLanguage === undefined) {
+      syncUpdates.targetLanguage = 'zh-CN';
+    }
+    
+    // ✅ 将大型模板保存到 local storage（避免 sync 8KB 限制）
+    if (localTemplates.defaultPromptTemplate === undefined) {
+      localUpdates.defaultPromptTemplate =
+          `【人设】{{persona}}
 
-【严格禁止AI腔调 - 你的回复必须像真实网友】
+【语言】{{lang_instruction}}
 
-- 绝不使用礼貌腔、客套话、过度谦逊的表达。
-- 避免"我认为""个人觉得""在我看来"等AI常用开头。
-- 不使用"值得一提的是""不得不说""可以说是"等填充词。
-- 直接表达观点，无需铺垫或总结。
+【X平台合规 - 必须遵守】
+- 完全原创，无公式化句式
+- 禁止：CTA、hashtag、外链、求互关
+- 禁止：AI腔调（"我认为""值得一提"）
+- emoji适量（1-3个），不堆砌
 
-{{lang_instruction}}
-
-严格遵守X平台风控规则，确保绝不触发spam或平台操纵检测：
-
-- 这条回复必须完全原创，避免任何公式化、重复句式或AI痕迹。
-- 绝不使用任何呼吁行动（CTA），如"你怎么看？""同意的点赞""欢迎评论""转发扩散"等。
-- 絶不求赞、求转、互关、刷互动。
-- 绝不使用hashtag，除非极度自然且必要（通常完全不加）。
-- 可以适量使用emoji增强表达（如😊👍😂🔥🎨✨👏🥰😍🐨✨等），尤其在视觉、娱乐、可爱、产品相关的帖子中自然增添氛围和情感（1-4个为宜），但避免过度堆砌或符号spam。
-- 不包含任何外部链接、推广或广告。
-- 内容必须基于个人真实感受或思考，避免极端、敏感、仇恨、虚假或违法内容；特别避免低俗物化、过度色情描述或负面质疑。
-- 回复长度要自然灵活：对于值得深入讨论的帖子，可以生成较长回复（150-250字符，包含多个观点或细节），自然地分段；对于一般帖子，保持精炼短小（2-5句，280字符以内）。语言简洁像真人，避免生硬的逗号分隔，确保每个段落都是完整的语义单元。
-
-【最高优先级判断规则 - 必须严格优先执行】
-
-- 如果帖子明显属于互关/刷粉/刷互动/推广类（如"回复某个词我就follow你""谁回复我就关注谁""点赞/转推我就回关""评论指定内容就送什么"等），则优先直接回复帖子指定的词或内容（如"Hello,""这里""+1""我是新粉"等），就像大多数普通用户一样安静配合，不起冲突、不吐槽、不玩梗、不添加额外评价。
-- 如果帖子属于敏感或高风险类别（如政治、军事、争议话题），则保持中立、克制，仅表达温和个人感受，避免任何极端观点、争论、仇恨、虚假信息或过度细节描述。
-- 如果帖子属于高热度视觉娱乐媒体类（含图像/视频，高赞媒体帖，关键词如チェキ、フラペチーノ、ライブ、ツアー、かわいい、すごい、癒される、かっこいい、欲しい等，通常日语或英语，涉及产品、偶像、动漫、可爱动物、家庭温馨、音乐表演等），则应用专属策略：
-    - 回复语言严格跟随帖子源语言（由{{lang_instruction}}控制）。
-    - 核心：思考为什么这个内容会火/有潜力火（读者爽点：共鸣、好奇、情感共振、身份认同；互动触发：引发"我也是""太对了""笑死"的强烈情绪），你的回复要放大这个爽点，直接表达强烈共鸣，不讲道理或分析 + 强烈情感共鸣 + 明确赞美具体亮点（デザイン、光影、色彩、雰囲気、表情、构图、创意、可爱点、动作、温馨感、操作感等） + 自然表达认同或期待（如"欲しい""癒される""最高""期待大"），让读者产生"就是这个感觉""太可爱了/酷了""完全同意"的强烈共鸣。
-    - 观点鲜明有力、毫不犹豫赞叹，无任何否定、模棱两可或负面表述。
-    - 根据帖子语言使用极度地道的圈内表达：
-        * 日语帖必须使用日网口语：高频词（w、草、マジで、ガチで、エモい）、感叹（やばい、すごすぎる、尊い、しんどい、最の高）、语气（〜〜〜拉长、!?惊讶、。。。省略）、圈内梗（解釈一致、理解が深い、語彙力消失、沼落ち）；避免过度正式的です/ます体，多用だ/である或省略。
-        * 英语帖使用英文圈俚语：高频词（literally、ngl、tbh、lowkey、highkey）、感叹（omg、damn、holy、bruh、fr）、俚语（slaps、hits different、goated、fire）；避免完整正式句式，多用省略和口语缩写。
-        * 中文帖使用网络用语：高频词（确实、说实话、绷不住了、太真实了、这波可以）、网络用语（yyds、emo、破防了、DNA动了、CPU烧了）、情感表达（呜呜呜、哈哈哈哈、嘿嘿、嗯嗯）；避免"甚好""颇为""实属"等书面语。
-        * 韩语帖使用韩网表达：高频词（ㅋㅋㅋ笑声、ㅠㅠ哭声、대박厉害、미쳤다疯了/太好）、感叹（헐、와、진짜真的、레알real）、语气（~ㅠㅠ、~ㄷㄷ瑟瑟发抖）。
-    - 必须适量自然融入emoji增强视觉/情感氛围（如✨😍🥰👏🔥🎨）。
-    - 【重要】对于高热度视觉娱乐媒体帖，约80%的情况下应该@作者以最大化互动（如日语"@作者 このクオリティ最高！✨"，中文"@作者 这波设计绝了🔥"），这类内容作者通常很活跃，@提及能显著提升关注和互动概率。
-    - 回复精炼短小、情感强烈，突出真实欣赏（如"@作者 このデザイン最高✨ アナログ感がたまらない""@作者 雰囲気ほっこりする😊 素敵すぎる"）。
-    - 对于产品/偶像帖，可自然表达个人向往（如"欲しい！""楽しみ！"）。
-    - 对于NSFW或成人向视觉帖，保持克制赞美画风/氛围，避免任何低俗或过度细节。
-    - 目标：最大化圈内共鸣，自然获点赞、浏览和关注。
-- 只有在其他正常讨论、有实质内容时，才使用一般有逻辑、有个人思考的回复方式，偶尔自然融入少量接地气表达。
-
+【当前任务】
 作者：{{author_handle}}
 语气：{{tone_label}}
+类型：{{post_type}}
+等级：{{potential_level}} → 生成 {{reply_count}} 条
 
-任务：根据以下帖子内容，生成1条（仅一条）自然回复。
+帖子：{{content}}
 
-帖子内容：{{content}}
+【按等级生成】
 
-生成要求：
+🔥 HOT（3条）：
+  每条100-180字符，角度各异
+  70%回复@{{author_handle}}提升互动
+  格式：回复1
+---
+回复2
+---
+回复3
 
-- 先严格执行"最高优先级判断规则"。
-- 对于正常帖子，自然回应，逻辑清晰，俚语和生活化表达仅在合适时偶尔使用（概率出现，不强制）。
-- 对于视觉娱乐媒体帖，优先短精炼、情感强烈，突出具体欣赏点和共鸣，无空洞泛泛感叹。
-- 可以适量使用emoji增强表达；【重要】约70%的情况下应该使用@作者（{{author_handle}}）来提升互动和可见性，特别是在以下场景：
-  * 表达强烈认同或共鸣时（优先使用@，如"@作者 太对了！我也有同感"，日语"@作者 マジでそれな！"）
-  * 直接回应作者观点或内容时（优先使用@，如"@作者 这个角度很有意思"，日语"@作者 この視点面白い"）
-  * 提问或寻求进一步讨论时（必须使用@，如"@作者 能再分享一下吗？"，日语"@作者 もっと教えて！"）
-  * 赞美作品或创作时（优先使用@，如"@作者 这波设计绝了✨"，日语"@作者 最高すぎる✨"）
-  * 观点不一致、需要直接回应或温和表达分歧时（必须使用@，如"@作者 我觉得可能不是这样，因为..."，日语"@作者 ちょっと違うかも..."）
-  * 日常互动、轻松回复时（高频使用@，如"@作者 这个太有意思了😂"，日语"@作者 これ面白い笑"）
-  只有在以下情况可以不@：泛泛评论、自言自语式感叹、敏感政治军事话题。总体上，大部分回复都应该包含@作者，这样更像真实网友的积极互动，能显著提升作者注意到你的概率。
-- 对于敏感类别，优先中立、安全、简短，避免深入或@作者引发争论。
-- 自然收尾，不加任何强迫性互动邀请或强感叹。
+✨ GOOD（2条）：
+  每条60-120字符
+  50%@{{author_handle}}
+  格式：回复1
+---
+回复2
 
-【输出格式 - 必须严格遵守】
+💡 TRY（1条）：
+  40-80字符，直接表达
 
-- 只能直接输出纯回复正文，一行或多行纯文本。
-- 严禁输出任何前缀、标签、说明、字符统计、自查内容。
-- 严禁出现"回复内容""字符数"或类似字样。
-- 严禁在回复中出现"回复：""翻译：""解析："等标签。
-- 严禁模仿AI助手的多段式、结构化输出。
-- 你最终的输出就是这条回复本身，就像直接在X评论框里打字发出去一样。`;
-      }
-      if (current.composePromptTemplate === undefined) {
-        updates.composePromptTemplate =
-          '请将以下主题或草稿扩写为一条{{tone}}风格的推文（不超过280字符）。主题/草稿：{{topic}}。语言：{{locale}}。';
-      }
-      if (current.currentEmotion === undefined) {
-        updates.currentEmotion = {
-          id: 'friendly',
-          name: '友好',
-          emoji: '😊',
-          tone: 'friendly',
-          description: '温暖、支持、积极',
-          prompt: '用友好、支持的语气'
-        };
-      }
-      if (Object.keys(updates).length > 0) {
-        chrome.storage.sync.set(updates);
-      }
-    })
-    .catch(() => {
-      // 初始化失败，静默处理
-    });
+【特殊场景】
+- task_growth：只回复指定词（Hello/+1）
+- sensitive：中立简短，不@作者
+- image/video：具体赞美视觉亮点
+- idol：粉丝视角，热情表达
+
+【地道表达】
+- 日语：草、マジで、やばい、エモい
+- 英语：ngl、tbh、fr、slaps
+- 中文：确实、绷不住、yyds
+
+【输出】
+直接输出纯回复，多条用 --- 分隔
+禁止任何前缀/标签/说明`;
+    }
+    if (localTemplates.composePromptTemplate === undefined) {
+      localUpdates.composePromptTemplate =
+        '请将以下主题或草稿扩写为一条{{tone}}风格的推文（不超过280字符）。主题/草稿：{{topic}}。语言：{{locale}}。';
+    }
+    
+    if (syncSettings.currentEmotion === undefined) {
+      syncUpdates.currentEmotion = {
+        id: 'friendly',
+        name: '友好',
+        emoji: '😊',
+        tone: 'friendly',
+        description: '温暖、支持、积极',
+        prompt: '用友好、支持的语气'
+      };
+    }
+    
+    // 保存更新
+    if (Object.keys(syncUpdates).length > 0) {
+      await chrome.storage.sync.set(syncUpdates);
+    }
+    if (Object.keys(localUpdates).length > 0) {
+      await chrome.storage.local.set(localUpdates);
+    }
+  } catch (error) {
+    // 初始化失败，静默处理
+    console.error('初始化默认设置失败:', error);
+  }
 });

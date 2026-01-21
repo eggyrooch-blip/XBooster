@@ -1,9 +1,8 @@
 {
   "manifest_version": 3,
   "name": "XBooster",
-  "version": "1.0.1",
+  "version": "1.0.5",
   "description": "自动阅读帖子内容并生成翻译和评论",
-  "privacy_policy": "https://raw.githubusercontent.com/eggyrooch-blip/XBooster/main/PRIVACY_POLICY.md",
   "permissions": [
     "activeTab",
     "storage",
@@ -32,7 +31,8 @@
         "https://pro.x.com/*"
       ],
       "js": ["content.js", "x-inline.js", "bulk-reply.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": false
     }
   ],
   "background": {
@@ -47,9 +47,10 @@
     {
       "resources": [
         "icons/*.png",
-        "emotions.json"
+        "emotions.json",
+        "prompts/*.md"
       ],
-      "matches": ["https://x.com/*"]
+      "matches": ["https://x.com/*", "https://pro.x.com/*"]
     }
   ]
 }

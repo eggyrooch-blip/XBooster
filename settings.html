@@ -26,11 +26,23 @@
       </div>
 
       <div class="field-group">
-        <div class="help-text" style="margin-bottom: 16px; line-height: 1.6; color: #4a5568;">
+        <!-- 配置教程入口 -->
+        <a href="https://x.com/eggyrooch/status/2012779981777027368" target="_blank" class="tutorial-link-card">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="font-size: 28px;">📖</div>
+            <div style="flex: 1;">
+              <div style="font-weight: 700; font-size: 15px; margin-bottom: 3px; color: #fff;">快速配置教程</div>
+              <div style="font-size: 12px; color: rgba(255, 255, 255, 0.85);">3 分钟学会配置，立即开始使用 XBooster</div>
+            </div>
+            <div style="font-size: 20px; color: rgba(255, 255, 255, 0.8);">→</div>
+          </div>
+        </a>
+        
+        <div class="help-text" style="margin: 16px 0; line-height: 1.6; color: #4a5568;">
           如遇问题或有功能建议，欢迎通过以下渠道联系
         </div>
         
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
           <a href="https://x.com/eggyrooch" target="_blank" class="community-link-card" style="background: #2c3e50; border: 1px solid #34495e;">
             <div style="display: flex; align-items: center; gap: 10px;">
               <div style="font-size: 24px;">👨‍💻</div>
@@ -63,58 +75,35 @@
       </div>
 
       <div class="field">
-        <label for="ai-provider">AI 接口</label>
-        <select id="ai-provider">
-          <option value="openai">OpenAI（默认）</option>
-          <option value="custom">OpenAI 代理站</option>
-        </select>
-      </div>
-
-      <div id="openai-config-section" class="field-group">
-        <div class="field-grid">
-          <div class="field">
-            <label for="openai-api-key">OpenAI API Key</label>
-            <input type="password" id="openai-api-key" placeholder="sk-...">
-            <div class="help-text">获取地址：<a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div class="help-text" style="margin: 0;">
+            💡 启用多个接口会自动轮询（P1 > P2 > P3），提升稳定性
           </div>
-          <div class="field">
-            <label for="openai-model">OpenAI 模型</label>
-            <select id="openai-model">
-              <option value="gpt-3.5-turbo">GPT-3.5 Turbo（推荐）</option>
-              <option value="gpt-4">GPT-4</option>
-              <option value="gpt-4-turbo">GPT-4 Turbo</option>
-            </select>
-          </div>
+          <button type="button" id="add-proxy-btn" class="btn-secondary" style="padding: 8px 16px; font-size: 13px;">+ 添加接口</button>
         </div>
-      </div>
-
-      <div id="custom-config-section" class="field-group" style="display: none;">
-        <div class="field">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <label style="margin: 0;">代理站列表</label>
-            <button type="button" id="add-proxy-btn" class="btn-secondary" style="padding: 6px 12px; font-size: 13px;">+ 添加代理站</button>
-          </div>
-          <div class="help-text" style="margin-bottom: 8px;">支持配置多个代理站实现负载均衡，可启用/禁用每个站点</div>
-          <div class="help-text" style="margin-bottom: 16px; padding: 8px 12px; background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%); border-radius: 6px; border-left: 3px solid var(--accent-strong);">
-            💡 <strong>推荐代理站：</strong><a href="https://api2.aigcbest.top/register?aff=Jdcp" target="_blank" style="color: var(--accent-strong); text-decoration: none; font-weight: 600; margin-left: 4px;">钱多多 API</a> <span style="color: #697179;">— 实测稳定可靠，响应速度快，支持多种模型</span>
-          </div>
-          <div class="proxy-table-wrapper">
-            <table class="proxy-table">
-              <thead>
-                <tr>
-                  <th style="width: 120px;">站点名称</th>
-                  <th>API 基础 URL</th>
-                  <th style="width: 140px;">模型</th>
-                  <th style="width: 200px;">API Key</th>
-                  <th style="width: 80px;">启用</th>
-                  <th style="width: 60px;">操作</th>
-                </tr>
-              </thead>
-              <tbody id="proxy-table-body">
-                <!-- 代理站行将通过JavaScript动态添加 -->
-              </tbody>
-            </table>
-          </div>
+        
+        <div class="proxy-table-wrapper">
+          <table class="proxy-table">
+            <thead>
+              <tr>
+                <th style="width: 60px; text-align: center;">优先级</th>
+                <th style="width: 110px;">站点</th>
+                <th style="width: 220px;">API 地址</th>
+                <th style="width: 180px;">模型</th>
+                <th style="width: 240px;">API Key</th>
+                <th style="width: 60px; text-align: center;">启用</th>
+                <th style="width: 60px; text-align: center;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="proxy-table-body">
+              <!-- 所有代理站行将通过JavaScript动态添加 -->
+            </tbody>
+          </table>
+        </div>
+        
+        <div style="margin-top: 14px; padding: 12px 14px; background: linear-gradient(135deg, #e6f3ff 0%, #f0f7ff 100%); border-radius: 8px; border-left: 3px solid var(--accent);">
+          <strong>🎁 钱多多注册：</strong>
+          <a href="https://api2.aigcbest.top/register?aff=Jdcp" target="_blank" style="color: var(--accent-strong); text-decoration: none; font-weight: 600; margin-left: 4px;">立即注册获取 API Key →</a>
         </div>
       </div>
     </section>
@@ -141,38 +130,17 @@
       </div>
       
       <div class="field-group">
-        <h3>筛选条件</h3>
-        <div class="field">
-          <label>回复潜力筛选</label>
-          <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px;">
-            <label class="toggle" style="flex: 0 0 auto;">
-              <input type="checkbox" id="filter-potential-high" checked>
-              <div>
-                <div>高潜力 ⭐⭐⭐</div>
-              </div>
-            </label>
-            <label class="toggle" style="flex: 0 0 auto;">
-              <input type="checkbox" id="filter-potential-medium" checked>
-              <div>
-                <div>中潜力 ⭐⭐</div>
-              </div>
-            </label>
-            <label class="toggle" style="flex: 0 0 auto;">
-              <input type="checkbox" id="filter-potential-low" checked>
-              <div>
-                <div>低潜力 ⭐</div>
-              </div>
-            </label>
-          </div>
-          <div class="help-text">选择要生成回复的潜力等级,默认全选</div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3>筛选条件</h3>
+          <button id="reset-filters-btn" class="btn-secondary" style="padding: 6px 12px; font-size: 12px;">恢复推荐设置</button>
         </div>
         
         <div class="field">
           <label class="toggle">
-            <input type="checkbox" id="filter-verified-only">
+            <input type="checkbox" id="filter-verified-only" checked>
             <div>
               <div>仅回复蓝V用户</div>
-              <div class="help-text">开启后只为认证用户（蓝V）生成回复,默认关闭</div>
+              <div class="help-text">推荐开启，聚焦优质用户，提高互动质量</div>
             </div>
           </label>
         </div>
@@ -189,42 +157,95 @@
       </div>
       
       <div class="field-group">
-        <h3>权重设置</h3>
-        <div class="field">
-          <label for="potential-time-weight">
-            时间权重：<span id="potential-time-weight-value">50</span>%
-          </label>
-          <input type="range" id="potential-time-weight" min="0" max="100" value="50" step="1">
-          <div class="help-text">发布时间对潜力指数的影响权重</div>
+        <h3>评分偏好</h3>
+        <div id="scoring-summary" style="margin-bottom: 12px; padding: 12px 14px; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-radius: 10px; border: 1px solid #bae6fd; font-size: 13px; line-height: 1.6;">
+          <div style="font-weight: 600; margin-bottom: 6px; color: #0369a1;">📋 当前策略：</div>
+          <div id="scoring-description" style="color: #334155;"></div>
         </div>
         
-        <div class="field">
-          <label for="potential-competition-weight">
-            竞争权重：<span id="potential-competition-weight-value">50</span>%
-          </label>
-          <input type="range" id="potential-competition-weight" min="0" max="100" value="50" step="1">
-          <div class="help-text">回复数对潜力指数的影响权重</div>
+        <div class="field-grid">
+          <div class="field">
+            <label for="potential-time-weight">⏰ 时间新鲜度</label>
+            <select id="potential-time-weight" class="select-input">
+              <option value="0">不关心</option>
+              <option value="20">稍微偏好（20）</option>
+              <option value="40" selected>优先（40）⭐</option>
+              <option value="50">必须（50）</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="potential-competition-weight">🎯 竞争激烈度</label>
+            <select id="potential-competition-weight" class="select-input">
+              <option value="0">不关心</option>
+              <option value="20">稍微偏好（20）</option>
+              <option value="40" selected>优先（40）⭐</option>
+              <option value="50">必须（50）</option>
+            </select>
+          </div>
         </div>
         
-        <div class="field">
-          <div class="help-text" style="font-weight: 600; color: var(--accent-strong);">
-            权重总和：<span id="potential-weight-sum">100</span>%
+        <div class="field-grid">
+          <div class="field">
+            <label for="potential-view-weight">👁️ 浏览量热度</label>
+            <select id="potential-view-weight" class="select-input">
+              <option value="0">不关心</option>
+              <option value="15">稍微偏好（15）</option>
+              <option value="30" selected>优先（30）⭐</option>
+              <option value="40">必须（40）</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="potential-content-weight">📝 内容质量加分</label>
+            <select id="potential-content-weight" class="select-input">
+              <option value="0">不加分</option>
+              <option value="5">轻微（5）</option>
+              <option value="10" selected>正常（10）⭐</option>
+              <option value="20">大幅（20）</option>
+            </select>
+          </div>
+        </div>
+        
+        <div style="margin-top: 4px; font-size: 13px; color: #64748b;">
+          权重总和：<span id="potential-weight-sum" style="font-weight: 600; color: #10b981;">120</span> / 120
+        </div>
+      </div>
+      
+      <div class="field-group">
+        <h3>🚫 硬过滤（不满足直接 SKIP）</h3>
+        <div class="field-grid">
+          <div class="field">
+            <label for="filter-min-views">最小浏览量</label>
+            <input type="number" id="filter-min-views" min="0" max="10000" value="500" step="100">
+          </div>
+          <div class="field">
+            <label for="filter-max-hours">最大时间（小时）</label>
+            <input type="number" id="filter-max-hours" min="1" max="48" value="14" step="1">
+          </div>
+          <div class="field">
+            <label for="filter-max-replies">最大回复数</label>
+            <input type="number" id="filter-max-replies" min="10" max="500" value="180" step="10">
           </div>
         </div>
       </div>
       
       <div class="field-group">
-        <h3>阈值设置</h3>
+        <h3>📊 等级阈值（120分制）</h3>
         <div class="field-grid">
           <div class="field">
-            <label for="potential-high-threshold">潜力高阈值（>=）</label>
-            <input type="number" id="potential-high-threshold" min="0" max="100" value="70" step="1">
-            <div class="help-text">达到此分数生成3条回复</div>
+            <label for="potential-must-grab-threshold">🔥 HOT（>=）→ 3条</label>
+            <input type="number" id="potential-must-grab-threshold" min="0" max="120" value="95" step="1">
           </div>
           <div class="field">
-            <label for="potential-medium-threshold">潜力中阈值（>=）</label>
-            <input type="number" id="potential-medium-threshold" min="0" max="100" value="40" step="1">
-            <div class="help-text">达到此分数生成2条回复</div>
+            <label for="potential-strong-threshold">✨ GOOD（>=）→ 2条</label>
+            <input type="number" id="potential-strong-threshold" min="0" max="120" value="80" step="1">
+          </div>
+          <div class="field">
+            <label for="potential-try-threshold">💡 TRY（>=）→ 1条</label>
+            <input type="number" id="potential-try-threshold" min="0" max="120" value="65" step="1">
+          </div>
+          <div class="field">
+            <label for="potential-skip-threshold">⏭️ SKIP（<65）</label>
+            <input type="number" id="potential-skip-threshold" min="0" max="120" value="65" step="1" disabled>
           </div>
         </div>
       </div>
@@ -243,6 +264,28 @@
       </div>
 
       <div class="field-group">
+        <h3>🎭 人设配置</h3>
+        <div class="field-grid">
+          <div class="field">
+            <label for="persona-preset">预设人设</label>
+            <select id="persona-preset" class="select-input">
+              <option value="designer">🎨 自由设计师（审美敏锐、表达直接）</option>
+              <option value="student">📚 中二高中生（热血、爱用网络梗）</option>
+              <option value="otaku">🎮 二次元宅（追番、懂梗、共情强）</option>
+              <option value="foodie">🍜 美食博主（热爱分享、生活化）</option>
+              <option value="tech">💻 程序员（理性、简洁、偶尔吐槽）</option>
+              <option value="custom">✏️ 自定义...</option>
+            </select>
+          </div>
+          <div class="field" id="custom-persona-field" style="display: none;">
+            <label for="custom-persona">自定义人设描述</label>
+            <input type="text" id="custom-persona" placeholder="如：25岁摄影师，喜欢旅行和咖啡">
+          </div>
+        </div>
+        <div class="help-text">人设影响回复风格，可用 {{persona}} 变量引用</div>
+      </div>
+
+      <div class="field-group">
         <h3>评论 / 回复统一模板</h3>
         <div class="field" id="response-vars">
           <div class="help-text">可用变量（点击插入）：</div>
@@ -251,7 +294,10 @@
         <div class="field">
           <label for="default-prompt-template">评论/回复提示词模板</label>
           <textarea id="default-prompt-template" rows="5" placeholder="用于弹窗评论与小老虎回复。"></textarea>
-          <div class="help-text">所有提示词均可见，无隐藏片段；变量需在上方勾选后点击插入。</div>
+          <div class="help-text">
+            所有提示词均可见，无隐藏片段；变量需在上方勾选后点击插入。<br>
+            <span style="color: #64748b;">💡 提示：也可直接编辑 <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">prompts/default-reply.md</code> 文件</span>
+          </div>
           <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
             <button id="reset-default-template-btn" class="btn-secondary">恢复默认提示词</button>
           </div>

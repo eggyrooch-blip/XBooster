@@ -1005,18 +1005,49 @@ async function checkApiConfig() {
   const config = await chrome.storage.sync.get([
     'aiProvider',
     'openaiApiKey',
-    'customApiKey',
-    'customApiBaseUrl'
+    'proxyList'
   ]);
-  const provider = config.aiProvider || 'openai';
-  const missingConfig =
-    provider === 'custom'
-      ? !(config.customApiKey && config.customApiBaseUrl)
-      : !config.openaiApiKey;
-
-  if (missingConfig) {
-    showStatus('提示：请在设置中配置 API Key / URL 以获得最佳体验', 'info');
+  
+  const provider = config.aiProvider || 'custom'; // 默认为代理站
+  let isConfigured = false;
+  
+  if (provider === 'openai') {
+    // 检查 OpenAI 官方配置
+    isConfigured = !!(config.openaiApiKey && config.openaiApiKey.trim().length > 0);
+  } else {
+    // 检查代理站配置
+    const proxyList = config.proxyList || [];
+    // 至少有一个启用的代理站且配置了 API Key
+    isConfigured = proxyList.some(proxy => 
+      proxy.enabled !== false && 
+      proxy.apiKey && 
+      proxy.apiKey.trim().length > 0 &&
+      proxy.baseUrl &&
+      proxy.baseUrl.trim().length > 0
+    );
   }
+  
+  // 显示或隐藏配置提示（带动画效果）
+  const notice = document.getElementById('config-notice');
+  if (notice) {
+    if (isConfigured) {
+      // 淡出隐藏
+      notice.style.opacity = '0';
+      setTimeout(() => {
+        if (notice.style.opacity === '0') {
+          notice.style.display = 'none';
+        }
+      }, 300);
+    } else {
+      // 淡入显示
+      notice.style.display = 'block';
+      setTimeout(() => {
+        notice.style.opacity = '1';
+      }, 10);
+    }
+  }
+  
+  return isConfigured;
 }
 
 
@@ -1172,7 +1203,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // 加载默认提示词模板（仅在当前为空时填充）
   try {
-    const { defaultPromptTemplate } = await chrome.storage.sync.get(['defaultPromptTemplate']);
+    // ✅ 从 local storage 读取模板（避免 sync 8KB 限制）
+    const { defaultPromptTemplate } = await chrome.storage.local.get(['defaultPromptTemplate']);
     const promptEl = document.getElementById('custom-prompt');
     if (promptEl && !promptEl.value) {
       if (defaultPromptTemplate) {
@@ -1180,7 +1212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         promptEl.value = DEFAULT_PROMPT_TEMPLATE;
         try {
-          await chrome.storage.sync.set({ defaultPromptTemplate: DEFAULT_PROMPT_TEMPLATE });
+          await chrome.storage.local.set({ defaultPromptTemplate: DEFAULT_PROMPT_TEMPLATE });
         } catch (e2) {
           // 写入失败，静默处理
         }
@@ -1256,5 +1288,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (area === 'local' && changes[STATS_KEY]) {
       loadStats();
     }
+    // 监听配置变化，实时更新配置提示
+    if (area === 'sync' && (changes.aiProvider || changes.openaiApiKey || changes.proxyList)) {
+      checkApiConfig().catch(() => {});
+    }
   });
+  
+  // "前往设置"按钮（从配置提示）
+  const openSettingsBtn = document.getElementById('open-settings-from-notice');
+  if (openSettingsBtn) {
+    openSettingsBtn.addEventListener('click', () => {
+      chrome.runtime.openOptionsPage().catch(() => {});
+    });
+  }
 });

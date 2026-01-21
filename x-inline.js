@@ -1,19 +1,97 @@
 (() => {
+  // ========== v1.0.5 高级优化：更自然的行为模式 ==========
+  
+  // ✅ 优化1：模拟 Twitter 原生类名格式（特征混淆）
+  function generateTwitterLikeClass() {
+    // Twitter 的类名模式：css-[hash] 或 r-[hash]
+    const prefixes = ['css', 'r'];
+    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    // 生成类似 Twitter 的 hash（6-8 个字符）
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    const length = 6 + Math.floor(Math.random() * 3);
+    let hash = '';
+    for (let i = 0; i < length; i++) {
+      hash += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return `${prefix}-${hash}`;
+  }
+  
+  // ✅ 优化2：正态分布随机（更符合人类行为特征）
+  function normalRandom(mean, stdDev) {
+    // Box-Muller 变换
+    const u1 = Math.random();
+    const u2 = Math.random();
+    const z0 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    return Math.max(0, mean + z0 * stdDev);
+  }
+  
+  // ✅ 优化3：人类行为延迟（基于 HCI 研究数据）
+  function humanLikeDelay(action = 'default') {
+    switch(action) {
+      case 'init':
+        return normalRandom(800, 200); // 初始化延迟
+      case 'check':
+        return normalRandom(300, 100); // 检查延迟
+      case 'mutation':
+        return normalRandom(400, 150); // DOM 变化响应
+      default:
+        return normalRandom(500, 150); // 默认延迟
+    }
+  }
+  
+  // ✅ 优化4：智能节流 - 根据页面活跃度动态调整
+  let pageActivityLevel = 0.5; // 0-1，页面活跃度
+  let lastActivityCheck = Date.now();
+  
+  function updatePageActivity() {
+    const now = Date.now();
+    if (now - lastActivityCheck < 5000) return pageActivityLevel;
+    lastActivityCheck = now;
+    
+    // 检测页面活跃度指标
+    const scrolling = document.documentElement.scrollTop !== (window._lastScrollTop || 0);
+    window._lastScrollTop = document.documentElement.scrollTop;
+    
+    const hasActiveInput = document.activeElement?.tagName === 'INPUT' || 
+                          document.activeElement?.getAttribute('contenteditable') === 'true';
+    
+    // 计算活跃度
+    if (scrolling || hasActiveInput) {
+      pageActivityLevel = Math.min(1, pageActivityLevel + 0.2);
+    } else {
+      pageActivityLevel = Math.max(0.2, pageActivityLevel - 0.1);
+    }
+    
+    return pageActivityLevel;
+  }
+  
+  function getAdaptiveThrottle() {
+    const activity = updatePageActivity();
+    // 页面活跃时降低我们的活动频率
+    if (activity > 0.7) {
+      return normalRandom(600, 150); // 高活跃：更长延迟
+    } else if (activity < 0.4) {
+      return normalRandom(250, 80);  // 低活跃：可以更积极
+    }
+    return normalRandom(400, 120);   // 中等活跃
+  }
+
   // 多种工具栏选择器，按优先级排序
   const TOOLBAR_SELECTORS = [
     'div[data-testid="toolBar"]',
     'div[data-testid="toolbar"]',
     'div[role="toolbar"]'
   ];
-  const BUTTON_CLASS = 'xcomment-gpt-button';
-  const BUTTON_LOADING_CLASS = 'xcomment-gpt-button-loading';
-  const BUTTON_ERROR_CLASS = 'xcomment-gpt-button-error';
-  const FALLBACK_ROW_CLASS = 'xcomment-gpt-fallback-row';
+  // ✅ 使用 Twitter 风格的随机类名（特征混淆）
+  const BUTTON_CLASS = generateTwitterLikeClass();
+  const BUTTON_LOADING_CLASS = generateTwitterLikeClass();
+  const BUTTON_ERROR_CLASS = generateTwitterLikeClass();
+  const FALLBACK_ROW_CLASS = generateTwitterLikeClass();
   const LOADING_EMOJI = '🎲';
   const BUTTON_ICON_URL = chrome.runtime.getURL('icons/icon48.png');
   const BUTTONISH_SELECTOR =
-    'button:not(.xcomment-gpt-button), div[role="button"]:not(.xcomment-gpt-button), a[role="button"]:not(.xcomment-gpt-button)';
-  const STYLE_ID = 'xcomment-gpt-style';
+    `button:not(.${BUTTON_CLASS}), div[role="button"]:not(.${BUTTON_CLASS}), a[role="button"]:not(.${BUTTON_CLASS})`;
+  const STYLE_ID = generateTwitterLikeClass();
   const LAST_TOPIC_KEY = 'xcomment_last_topic';
 
   // ✅ 使用动态加载的情绪配置
@@ -113,15 +191,17 @@
       return;
     }
 
+    // ✅ 使用更隐蔽的方式添加样式，避免被检测
     const style = document.createElement('style');
     style.id = STYLE_ID;
+    // ✅ 使用原生 Twitter 的样式类，混淆检测
     style.textContent = `
       .${BUTTON_CLASS} {
         min-width: 36px;
         min-height: 36px;
-        border-radius: 999px;
-        border: none;
-        background: transparent;
+        border-radius: 9999px;
+        border: 0;
+        background-color: rgba(0,0,0,0);
         color: rgb(29, 155, 240);
         font-weight: 700;
         font-size: 20px;
@@ -130,23 +210,22 @@
         align-items: center;
         justify-content: center;
         user-select: none;
-        transition: transform 0.2s ease, background-color 0.2s ease;
+        transition: background-color 0.2s;
         line-height: 1;
+        position: relative;
       }
 
       .${BUTTON_CLASS}:hover {
         background-color: rgba(29, 155, 240, 0.1);
-        transform: scale(1.1);
       }
       
       .${BUTTON_CLASS}:active {
-        transform: scale(0.95);
+        background-color: rgba(29, 155, 240, 0.2);
       }
 
       .${BUTTON_LOADING_CLASS} {
-        animation: xcomment-gpt-spin 0.9s linear infinite;
+        animation: ${STYLE_ID}-spin 0.9s linear infinite;
         pointer-events: none;
-        transform-origin: 50% 50%;
       }
 
       .${BUTTON_ERROR_CLASS} {
@@ -160,7 +239,7 @@
         gap: 8px;
       }
 
-      @keyframes xcomment-gpt-spin {
+      @keyframes ${STYLE_ID}-spin {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
       }
@@ -690,42 +769,206 @@
     });
   }
 
-  function init() {
-    ensureStyles();
-
-    // 清理旧按钮（可能来自旧版本的残留）
-    document.querySelectorAll(`.${BUTTON_CLASS}`).forEach((btn) => {
-      btn.remove();
-    });
-
-    // 方法1: 查找所有已知的工具栏选择器
-    for (const selector of TOOLBAR_SELECTORS) {
-      const toolbars = document.querySelectorAll(selector);
-      toolbars.forEach((toolbar) => {
-        addButtonToToolbar(toolbar);
-      });
+  // ✅ 性能优化：保存定时器和 Observer 引用
+  let inputCheckInterval = null;
+  let domObserver = null;
+  let lastCheckTime = 0;
+  
+  // ✅ v1.0.5：智能暂停机制 - 风险检测
+  let riskLevel = 'low'; // low, medium, high
+  let checkCount = 0;
+  const MAX_CHECKS_PER_MINUTE = 15;
+  let riskCheckInterval = null;
+  
+  function assessRisk() {
+    const now = Date.now();
+    
+    // 检测 1：操作频率是否过高
+    checkCount++;
+    const isHighFrequency = checkCount > MAX_CHECKS_PER_MINUTE;
+    
+    // 检测 2：页面是否有异常元素（错误提示等）
+    const hasWarningElements = document.querySelector('[data-testid="error"]') ||
+                               document.querySelector('[role="alert"]');
+    
+    // 检测 3：页面是否在加载中
+    const isLoading = document.querySelector('[aria-label*="Loading"]') ||
+                      document.querySelector('[data-testid="loading"]');
+    
+    if (hasWarningElements) {
+      riskLevel = 'high';
+    } else if (isHighFrequency || isLoading) {
+      riskLevel = 'medium';
+    } else {
+      riskLevel = 'low';
     }
     
-    // 方法2: 查找所有输入框并尝试添加按钮
-    const allInputs = findAllInputs();
-    allInputs.forEach(input => {
-      addButtonToInput(input);
-    });
+    return riskLevel;
+  }
+  
+  function getCheckThrottle() {
+    const risk = assessRisk();
+    switch(risk) {
+      case 'high':
+        return normalRandom(3000, 500); // 高风险：大幅降低频率
+      case 'medium':
+        return normalRandom(1500, 300); // 中风险：适度降低
+      default:
+        return normalRandom(800, 200);  // 低风险：正常
+    }
+  }
+  
+  function getCheckInterval() {
+    const risk = riskLevel;
+    switch(risk) {
+      case 'high':
+        return 10000; // 高风险：10秒
+      case 'medium':
+        return 7000;  // 中风险：7秒
+      default:
+        return 5000;  // 低风险：5秒
+    }
+  }
 
-    const root = document.querySelector('#react-root') || document.body;
-    const observer = new MutationObserver(handleMutations);
-    observer.observe(root, { childList: true, subtree: true });
-    
-    // 定期检查输入框（处理动态加载的情况）
-    setInterval(() => {
-      const inputs = findAllInputs();
-      inputs.forEach(input => {
-        const hasButton = input.closest('div')?.querySelector(`.${BUTTON_CLASS}`);
-        if (!hasButton) {
-          addButtonToInput(input);
+  // ✅ 使用正态分布延迟，更自然
+  function randomDelay(action = 'default') {
+    return new Promise(resolve => {
+      setTimeout(resolve, humanLikeDelay(action));
+    });
+  }
+
+  function init() {
+    // ✅ v1.0.5：使用正态分布的初始化延迟
+    const initDelay = humanLikeDelay('init');
+    setTimeout(async () => {
+      ensureStyles();
+
+      // 清理旧按钮（可能来自旧版本的残留）
+      document.querySelectorAll(`.${BUTTON_CLASS}`).forEach((btn) => {
+        btn.remove();
+      });
+
+      // ✅ 延迟添加按钮，使用正态分布
+      await randomDelay('init');
+
+      // 方法1: 查找所有已知的工具栏选择器
+      for (const selector of TOOLBAR_SELECTORS) {
+        const toolbars = document.querySelectorAll(selector);
+        toolbars.forEach((toolbar) => {
+          addButtonToToolbar(toolbar);
+        });
+      }
+
+      // 方法2: 查找所有输入框并尝试添加按钮
+      const allInputs = findAllInputs();
+      allInputs.forEach(input => {
+        addButtonToInput(input);
+      });
+
+      const root = document.querySelector('#react-root') || document.body;
+      
+      // ✅ v1.0.5：使用智能节流的 MutationObserver
+      let mutationTimeout = null;
+      let pendingMutations = [];
+      
+      domObserver = new MutationObserver((mutations) => {
+        pendingMutations.push(...mutations);
+        
+        if (mutationTimeout) {
+          return;
+        }
+        
+        // ✅ 使用动态节流时间
+        const throttleTime = getAdaptiveThrottle();
+        mutationTimeout = setTimeout(() => {
+          handleMutations(pendingMutations);
+          pendingMutations = [];
+          mutationTimeout = null;
+        }, throttleTime);
+      });
+      
+      // ✅ 只监听 childList，不监听 subtree，减少性能消耗和检测风险
+      domObserver.observe(root, { childList: true, subtree: false });
+
+      // ✅ v1.0.5：动态调整检查间隔
+      function scheduleNextCheck() {
+        const interval = getCheckInterval();
+        inputCheckInterval = setTimeout(() => {
+          // 页面隐藏时跳过检查
+          if (document.hidden) {
+            scheduleNextCheck();
+            return;
+          }
+          
+          // 节流检查
+          const now = Date.now();
+          const throttle = getCheckThrottle();
+          if (now - lastCheckTime < throttle) {
+            scheduleNextCheck();
+            return;
+          }
+          lastCheckTime = now;
+          
+          const inputs = findAllInputs();
+          inputs.forEach(input => {
+            const hasButton = input.closest('div')?.querySelector(`.${BUTTON_CLASS}`);
+            if (!hasButton) {
+              addButtonToInput(input);
+            }
+          });
+          
+          scheduleNextCheck();
+        }, interval);
+      }
+      
+      scheduleNextCheck();
+      
+      // ✅ v1.0.5：每分钟重置风险计数
+      riskCheckInterval = setInterval(() => {
+        checkCount = 0;
+        // 如果之前是高风险，逐步降低
+        if (riskLevel === 'high') {
+          riskLevel = 'medium';
+        } else if (riskLevel === 'medium') {
+          riskLevel = 'low';
+        }
+      }, 60000);
+
+      // ✅ 性能优化：页面可见性变化时暂停/恢复
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          // 页面隐藏时断开 observer 减少 CPU 占用
+          if (domObserver) {
+            domObserver.disconnect();
+          }
+          // 清理定时器
+          if (inputCheckInterval) {
+            clearTimeout(inputCheckInterval);
+            inputCheckInterval = null;
+          }
+        } else {
+          // 页面可见时重新连接
+          if (domObserver) {
+            const root = document.querySelector('#react-root') || document.body;
+            domObserver.observe(root, { childList: true, subtree: false });
+          }
+          // ✅ 使用正态分布延迟重新开始检查
+          setTimeout(() => {
+            const inputs = findAllInputs();
+            inputs.forEach(input => {
+              const hasButton = input.closest('div')?.querySelector(`.${BUTTON_CLASS}`);
+              if (!hasButton) {
+                addButtonToInput(input);
+              }
+            });
+            // 重新开始定时检查
+            if (!inputCheckInterval) {
+              scheduleNextCheck();
+            }
+          }, humanLikeDelay('check'));
         }
       });
-    }, 2000);
+    }, initDelay);
   }
 
   // ✅ 初始化：先加载情绪配置,再启动主程序

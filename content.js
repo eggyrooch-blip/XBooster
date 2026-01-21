@@ -1,3 +1,52 @@
+// ========== v1.0.5 高级优化 ==========
+
+// ✅ 优化1：正态分布随机（更符合人类行为特征）
+function normalRandom(mean, stdDev) {
+  const u1 = Math.random();
+  const u2 = Math.random();
+  const z0 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  return Math.max(0, mean + z0 * stdDev);
+}
+
+// ✅ 优化2：人类行为延迟
+function humanLikeDelay(action = 'default') {
+  switch(action) {
+    case 'init':
+      return normalRandom(600, 150);
+    case 'urlChange':
+      return normalRandom(400, 100);
+    case 'check':
+      return normalRandom(500, 120);
+    default:
+      return normalRandom(350, 100);
+  }
+}
+
+// ✅ 优化3：智能节流
+let pageActivityLevel = 0.5;
+let lastActivityCheck = Date.now();
+
+function getAdaptiveThrottle() {
+  const now = Date.now();
+  if (now - lastActivityCheck > 5000) {
+    lastActivityCheck = now;
+    const scrolling = document.documentElement.scrollTop !== (window._lastScrollTop || 0);
+    window._lastScrollTop = document.documentElement.scrollTop;
+    if (scrolling) {
+      pageActivityLevel = Math.min(1, pageActivityLevel + 0.2);
+    } else {
+      pageActivityLevel = Math.max(0.2, pageActivityLevel - 0.1);
+    }
+  }
+  
+  if (pageActivityLevel > 0.7) {
+    return normalRandom(700, 150);
+  } else if (pageActivityLevel < 0.4) {
+    return normalRandom(350, 80);
+  }
+  return normalRandom(500, 120);
+}
+
 // 检测是否在帖子详情页
 function isPostDetailPage() {
   const url = window.location.href;
@@ -697,7 +746,15 @@ function waitForElement(selector, timeout = 5000) {
 }
 
 // 页面加载完成后检测并通知
+// ✅ 性能优化：保存 URL Observer 引用
+let urlObserver = null;
+let lastUrl = '';
+
 function initPageCheck() {
+  // ✅ v1.0.5：使用正态分布延迟
+  const checkDelay = () => humanLikeDelay('check');
+  const urlChangeDelay = () => humanLikeDelay('urlChange');
+  
   // 如果是帖子详情页，等待内容加载
   if (isPostDetailPage()) {
     // 等待推文内容加载
@@ -705,70 +762,107 @@ function initPageCheck() {
       .then(() => {
         setTimeout(() => {
           checkPageAndNotify();
-        }, 500);
+        }, checkDelay());
       })
       .catch(() => {
         // 即使没找到元素也尝试检查
         setTimeout(() => {
           checkPageAndNotify();
-        }, 1000);
+        }, checkDelay() * 2);
       });
   } else {
     checkPageAndNotify();
   }
-  
+
   // 监听 URL 变化（X 使用 SPA，URL 变化不会重新加载页面）
-  let lastUrl = location.href;
-  const urlObserver = new MutationObserver(() => {
+  lastUrl = location.href;
+
+  // ✅ v1.0.5：URL 变化检测函数（使用自适应节流）
+  function handleUrlChange() {
     const url = location.href;
     if (url !== lastUrl) {
       lastUrl = url;
-      // 延迟一下，等待页面内容加载
+      // ✅ 使用正态分布延迟
       setTimeout(() => {
         if (isPostDetailPage()) {
           waitForElement('[data-testid="tweetText"], article[data-testid="tweet"]', 2000)
             .then(() => {
-              setTimeout(checkPageAndNotify, 500);
+              setTimeout(checkPageAndNotify, checkDelay());
             })
             .catch(() => {
-              setTimeout(checkPageAndNotify, 1000);
+              setTimeout(checkPageAndNotify, checkDelay() * 2);
             });
         } else {
           checkPageAndNotify();
         }
-      }, 300);
+      }, urlChangeDelay());
     }
+  }
+
+  // ✅ v1.0.5：使用自适应节流的 URL 监听
+  let urlCheckTimeout = null;
+  
+  urlObserver = new MutationObserver(() => {
+    if (urlCheckTimeout) {
+      return;
+    }
+    // ✅ 使用动态节流时间
+    urlCheckTimeout = setTimeout(() => {
+      handleUrlChange();
+      urlCheckTimeout = null;
+    }, getAdaptiveThrottle());
   });
   
-  urlObserver.observe(document, { subtree: true, childList: true });
-  
+  // 只监听 document.body 的直接子元素变化，而不是整个 subtree
+  urlObserver.observe(document.body, { childList: true, subtree: false });
+
   // 也监听 popstate 事件（浏览器前进后退）
   window.addEventListener('popstate', () => {
     setTimeout(() => {
       if (isPostDetailPage()) {
         waitForElement('[data-testid="tweetText"], article[data-testid="tweet"]', 2000)
           .then(() => {
-            setTimeout(checkPageAndNotify, 500);
+            setTimeout(checkPageAndNotify, checkDelay());
           })
           .catch(() => {
-            setTimeout(checkPageAndNotify, 1000);
+            setTimeout(checkPageAndNotify, checkDelay() * 2);
           });
       } else {
         checkPageAndNotify();
       }
-    }, 300);
+    }, urlChangeDelay());
+  });
+
+  // ✅ 性能优化：页面可见性变化时暂停/恢复 URL 监听
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      // 页面隐藏时断开 observer
+      if (urlObserver) {
+        urlObserver.disconnect();
+      }
+    } else {
+      // 页面可见时重新连接
+      if (urlObserver) {
+        urlObserver.observe(document.body, { childList: true, subtree: false });
+      }
+      // ✅ 使用正态分布延迟检查 URL 变化
+      setTimeout(handleUrlChange, humanLikeDelay('check'));
+    }
   });
 }
 
 // 页面加载完成后，可以添加一些辅助功能
 function init() {
+  // ✅ v1.0.5：使用正态分布的初始化延迟
+  const initDelay = humanLikeDelay('init');
+  
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(initPageCheck, 500);
+      setTimeout(initPageCheck, initDelay);
     });
   } else {
-    // 如果页面已经加载完成，延迟一下确保内容渲染完成
-    setTimeout(initPageCheck, 1000);
+    // 如果页面已经加载完成，使用正态分布延迟
+    setTimeout(initPageCheck, initDelay * 1.5);
   }
 }
 

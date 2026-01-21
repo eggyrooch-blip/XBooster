@@ -23,6 +23,22 @@
       </div>
     </header>
 
+    <!-- AI 接口配置提示 -->
+    <div class="notice warning" id="config-notice" style="display: none;">
+      <div style="display: flex; align-items: flex-start; gap: 12px;">
+        <span style="font-size: 24px; line-height: 1;">⚠️</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600; margin-bottom: 4px;">AI 接口尚未配置</div>
+          <div style="font-size: 12px; opacity: 0.9; margin-bottom: 10px;">
+            请先配置 API Key，才能使用评论生成功能
+          </div>
+          <button id="open-settings-from-notice" class="btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 13px;">
+            ⚙️ 前往设置
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="card stats-card">
       <div class="card-title-row">
         <div>

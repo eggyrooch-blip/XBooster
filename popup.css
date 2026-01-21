@@ -43,6 +43,35 @@ body {
   margin-bottom: 6px;
 }
 
+/* 配置提示样式 */
+.notice {
+  padding: 12px 14px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+
+.notice.warning {
+  background: linear-gradient(135deg, #fff3cd 0%, #fff9e6 100%);
+  border: 1px solid #ffc107;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.15);
+}
+
+#config-notice .btn-secondary {
+  background: #ffc107;
+  color: #000;
+  border: 1px solid #ffb300;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+#config-notice .btn-secondary:hover:not(:disabled) {
+  background: #ffb300;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
+}
+
 .hero {
   display: flex;
   align-items: flex-start;
